@@ -42,7 +42,7 @@
 
 启动日志中的 `No MyBatis mapper was found` 是因为当前尚未创建 Mapper，并非 MyBatis-Plus 本身发生故障。
 
-> 已知配置差异：当前 `application.properties` 的 `spring.datasource.username` 行包含重复文本，与预期的 `${DB_USERNAME:root}` 写法不一致；JDBC URL 中还显式写有 `characterEncoding=utf8`，需要结合 `utf8mb4` 数据库核验连接字符集。上述问题应在单独的配置任务中处理，本次文档任务不修改应用配置。
+当前数据源用户名配置已修正为 `${DB_USERNAME:root}`，数据库密码从 `${DB_PASSWORD}` 读取。Spring Boot 项目以前完成过启动验证，但尚未通过 Mapper 执行真实 SQL，因此 MyBatis-Plus → MySQL 的真实查询链路仍待验证。JDBC URL 中显式配置的 `characterEncoding=utf8` 也将在该查询链路建立后结合 `utf8mb4` 数据库核验；当前不据此断言连接字符集存在问题。
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
 
@@ -53,7 +53,7 @@
 3. 在该数据库中执行 [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)。
 4. 通过环境变量提供数据库凭证：
    - `DB_PASSWORD`：必填。
-   - `DB_USERNAME`：设计为可选，默认值应为 `root`；当前仓库存在上文所述配置差异，需先修复后再验证该默认值。
+   - `DB_USERNAME`：可选，默认值为 `root`。
 5. 执行 `./mvnw spring-boot:run`；Windows PowerShell 可执行 `.\mvnw.cmd spring-boot:run`。
 
 任何真实数据库密码、Token 或 API Key 都不得提交到 Git。文档和示例中也只应使用环境变量名或占位符。
@@ -64,4 +64,4 @@
 - [开发状态](docs/DEVELOPMENT_STATUS.md)：严格区分已完成、正在进行和尚未开始。
 - [系统架构](docs/ARCHITECTURE.md)：当前技术基线、目标分层和 AI 写入边界。
 - [数据库说明](docs/DATABASE.md)：当前真实表结构、命名映射和候选表规划。
-- [老师审批版开工方案](docs/reference/大学生职业发展与求职管理平台_项目开工方案_老师审批版_v1.md)：只读的历史审批用业务基线；正文保留了当时的待确认语境，文件名不单独证明审批结果，其中旧技术描述也不代表当前实现。
+- [原始开工方案](docs/reference/大学生职业发展与求职管理平台_项目开工方案_v1.md)：保留项目最初的完整范围和初始设计基线，不作为当前实时维护文档；当前实际状态以真实代码和上述持续维护文档为准。

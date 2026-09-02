@@ -54,7 +54,7 @@ Java 属性使用小驼峰，数据库字段使用下划线：
 
 ## 候选表规划
 
-审批基线规划约 28 张核心业务表，当前候选名称如下。除 `app_user` 外，均尚未建表。
+初始设计基线规划约 28 张核心业务表，当前候选名称如下。除 `app_user` 外，均尚未建表。
 
 ### 共享基础档案
 
@@ -114,7 +114,7 @@ RAG 可能增加 `document_chunk` 等检索相关结构。该部分尚未设计�
 ## 数据安全
 
 - 数据库只保存密码哈希，不保存明文密码。
-- 数据库密码通过 `DB_PASSWORD` 环境变量提供。
-- `DB_USERNAME` 的目标配置为 `${DB_USERNAME:root}`，但当前 `application.properties` 存在重复文本，需在后续配置任务中修复并验证。
-- JDBC URL 当前显式写有 `characterEncoding=utf8`，应在后续配置任务中核验其与 `utf8mb4` 数据库的连接行为。
+- 数据库密码通过必填的 `DB_PASSWORD` 环境变量提供。
+- 数据源用户名使用 `${DB_USERNAME:root}`，`DB_USERNAME` 可选且默认 `root`；重复文本问题已经修复。
+- JDBC URL 当前显式写有 `characterEncoding=utf8`，应在真实 SQL 查询链路建立后核验其与 `utf8mb4` 数据库的连接行为；当前不据此断言连接字符集存在问题。
 - 真实密码、Token、API Key 和其他凭证不得写入 SQL、Markdown 或 Git。
