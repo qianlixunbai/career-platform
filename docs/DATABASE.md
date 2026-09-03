@@ -1,120 +1,67 @@
 # 数据库说明
 
-## 当前数据库基线
+## 已验证基线
 
-- 数据库产品：MySQL
-- 数据库名称：`career_platform`
-- 字符集：`utf8mb4`
-- 排序规则：`utf8mb4_unicode_ci`
-- 当前已确认存在的业务表：仅 `app_user`
+- MySQL，数据库 `career_platform`
+- InnoDB、`utf8mb4`、`utf8mb4_unicode_ci`
+- `BIGINT AUTO_INCREMENT` 主键
+- 数据库密码只从 `${DB_PASSWORD}` 读取
 
-其余表名均属于候选规划，尚未创建。本文不会为尚未实现的表虚构字段、索引、外键或约束。
+截至 2026-09-03，测试通过 JDBC 连接真实 MySQL 并查询 `information_schema`，确认 Milestone 2 的 12 张新增表、14 个外键和 4 个关键唯一索引已经存在。业务测试也真实经过 Controller、Service、Mapper 和 MySQL；没有使用 H2。
 
-“已确认”依据是本项目当前提供的真实数据库基线。本次文档任务没有使用数据库凭证连接实时 MySQL，也没有重新执行 `SHOW CREATE TABLE`；当前结构已经与 `AppUser` 和初始化 SQL 交叉核对。
+## SQL 文件与实际应用状态
 
-## 当前 `app_user` 表
+| 文件 | 内容 | 状态 |
+|---|---|---|
+| `sql/001_create_app_user.sql` | 用户表 | 已应用 |
+| `sql/002_create_shared_profile_tables.sql` | 共享档案 7 表 | 已应用并验证 |
+| `sql/003_create_career_exploration_tables.sql` | 职业探索 5 表 | 已应用并验证 |
 
-| 字段 | 类型 | 可空 | 默认值 / 属性 | 说明 |
-|---|---|---|---|---|
-| `id` | `BIGINT` | 否 | 主键、自增 | 用户主键 |
-| `username` | `VARCHAR(50)` | 否 | 唯一 | 用户名 |
-| `password_hash` | `VARCHAR(255)` | 否 | 无 | 密码哈希，不保存明文密码 |
-| `status` | `VARCHAR(20)` | 否 | `'ACTIVE'` | Java 枚举当前对应 `ACTIVE`、`DISABLED` |
-| `created_at` | `DATETIME` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
-| `updated_at` | `DATETIME` | 否 | `CURRENT_TIMESTAMP`，更新时自动刷新 | 更新时间 |
+脚本均使用 `CREATE TABLE IF NOT EXISTS`，不会删除表或业务数据。已有历史脚本没有被覆盖。
 
-当前结构只包含上述六个字段。`email`、`phone`、`role`、`deleted`、`version` 等字段尚未确定，因此没有加入初始化 SQL。
+## 当前表与关系
 
-`status` 当前仍是普通 `VARCHAR(20)`，表结构没有额外的 `CHECK` 或数据库枚举约束；`ACTIVE`、`DISABLED` 是现有 Java `UserStatus` 的取值，不应误写成数据库已强制限制。
+### 用户与共享档案
 
-## Java 与数据库命名映射
+| 表 | 归属 / 关系 | 关键约束与索引 |
+|---|---|---|
+| `app_user` | 用户根实体 | `username` UNIQUE |
+| `user_profile` | `app_user` 1 → 0..1 | `user_id` UNIQUE、FK → `app_user` |
+| `education_experience` | 用户 1 → n | FK → `app_user`；`(user_id, id)` 查询索引 |
+| `skill` | 全局技能字典 | `name` UNIQUE |
+| `user_skill` | 用户 n ↔ n 技能的关联 | `(user_id, skill_id)` UNIQUE；两个 FK；`skill_id` 索引 |
+| `project_experience` | 用户 1 → n | FK → `app_user`；`(user_id, id)` 查询索引 |
+| `internship_experience` | 用户 1 → n | FK → `app_user`；`(user_id, id)` 查询索引 |
+| `certificate_award` | 用户 1 → n | FK → `app_user`；`(user_id, id)` 查询索引 |
 
-Java 属性使用小驼峰，数据库字段使用下划线：
+### 职业探索
 
-| Java | 数据库 |
-|---|---|
-| `passwordHash` | `password_hash` |
-| `createdAt` | `created_at` |
-| `updatedAt` | `updated_at` |
+| 表 | 归属 / 关系 | 关键约束与索引 |
+|---|---|---|
+| `career_goal` | 用户 1 → n | FK → `app_user`；`(user_id, status, updated_at)` |
+| `company` | 用户 1 → n | FK → `app_user`；`(user_id, name)`；`(id, user_id)` UNIQUE 供复合 FK 使用 |
+| `job` | 用户 1 → n；Company 1 → n | FK → `app_user`；`(company_id, user_id)` 复合 FK → `company(id, user_id)`；归档与公司索引 |
+| `job_requirement` | Job 1 → n | FK → `job`；可选 FK → `skill`；Job 和 Skill 索引 |
+| `job_note` | Job 1 → n | FK → `job`；`(job_id, created_at)` |
 
-当前计划使用 MyBatis-Plus 的下划线到驼峰自动映射。`AppUser` 已通过 `@TableName("app_user")` 指定表名，`id` 已配置为自增主键。Mapper 尚未创建，因此 MyBatis-Plus → MySQL 的真实查询和枚举读写链路仍待验证。
+`job` 保留 `user_id`，使岗位本身明确知道 owner，并让数据库直接阻止跨用户 Company 关联。`job_requirement` 和 `job_note` 通过父 Job 继承归属，应用层在操作子资源前先验证父 Job 的 owner。
 
-## 初始化 SQL
+## 有限集合
 
-当前表结构脚本位于 [`sql/001_create_app_user.sql`](../sql/001_create_app_user.sql)。执行前需要先创建并选择 `career_platform` 数据库；脚本中也使用 `USE career_platform` 明确目标数据库。
+- `app_user.status`：`ACTIVE`、`DISABLED`
+- `user_skill.proficiency`：`BEGINNER`、`FAMILIAR`、`PROFICIENT`
+- `certificate_award.type`：`CERTIFICATE`、`AWARD`
+- `career_goal.status`：`ACTIVE`、`PAUSED`、`ACHIEVED`
+- `job.job_type`：`FULL_TIME`、`INTERNSHIP`、`CAMPUS`、`PART_TIME`、`CONTRACT`、`OTHER`
+- `job.source_type`：`MANUAL`、`CAMPUS_SITE`、`COMPANY_WEBSITE`、`RECRUITMENT_PLATFORM`、`REFERRAL`、`OTHER`
+- `job_requirement.requirement_type`：`SKILL`、`EDUCATION`、`MAJOR`、`EXPERIENCE`、`LANGUAGE`、`OTHER`
 
-脚本采用 `CREATE TABLE IF NOT EXISTS`，用途是让同一份初始化脚本可以在表已经存在时重复执行而不因“表已存在”直接失败。它只负责创建缺失的表：
+这些值由 Java enum 和业务校验约束；当前 SQL 没有额外 CHECK 约束。
 
-- 不会删除现有数据。
-- 不会覆盖现有表。
-- 不会自动把旧结构迁移成本文结构。
-- 不会检查已存在表是否与期望结构完全一致。
+## 数据安全与迁移原则
 
-后续若出现字段变更，应新增有序迁移脚本，而不是悄悄改写已经执行过的历史迁移语义。
-
-## 候选表规划
-
-初始设计基线规划约 28 张核心业务表，当前候选名称如下。除 `app_user` 外，均尚未建表。
-
-### 共享基础档案
-
-- `app_user`
-- `user_profile`
-- `education_experience`
-- `skill`
-- `user_skill`
-- `project_experience`
-- `internship_experience`
-- `certificate_award`
-
-### 职业探索与目标管理
-
-- `career_goal`
-- `company`
-- `job`
-- `job_requirement`
-- `job_note`
-
-第一版计划由 `job` 字段保存岗位来源。`company` 独立，`job` 引用 `company`。具体字段和约束尚未设计完成。
-
-### 学习提升管理
-
-- `learning_plan`
-- `learning_task`
-- `study_record`
-- `weekly_review`
-- `learning_note`
-- `learning_material`
-
-已冻结的关系方向为：`LearningPlan` 1 → n `LearningTask`，`LearningTask` 1 → n `StudyRecord`，`LearningPlan` 1 → 0..1 `WeeklyReview`。学习笔记与学习资料分别建模。
-
-### 简历管理
-
-- `resume`
-- `resume_version`
-- `resume_content_item`
-
-`Resume` 1 → n `ResumeVersion`，`ResumeVersion` 由多个 `ResumeContentItem` 组成。定稿版本需要保留历史快照，不随共享档案变化。
-
-### 求职过程管理
-
-- `application`
-- `application_stage_history`
-- `assessment`
-- `interview`
-- `offer`
-- `final_review`
-
-`Application` 保存当前阶段及阶段历史；测评和面试独立；一个申请最多一个 Offer 和一个最终复盘。具体外键、唯一约束、并发控制和归档字段仍需后续详细设计，当前不写成已确定的数据库约束。
-
-### P2 技术数据
-
-RAG 可能增加 `document_chunk` 等检索相关结构。该部分尚未设计，也不计入当前真实表。
-
-## 数据安全
-
-- 数据库只保存密码哈希，不保存明文密码。
-- 数据库密码通过必填的 `DB_PASSWORD` 环境变量提供。
-- 数据源用户名使用 `${DB_USERNAME:root}`，`DB_USERNAME` 可选且默认 `root`；重复文本问题已经修复。
-- JDBC URL 当前显式写有 `characterEncoding=utf8`，应在真实 SQL 查询链路建立后核验其与 `utf8mb4` 数据库的连接行为；当前不据此断言连接字符集存在问题。
-- 真实密码、Token、API Key 和其他凭证不得写入 SQL、Markdown 或 Git。
+- 只保存 BCrypt 密码哈希，不保存明文密码。
+- `DB_PASSWORD`、`JWT_SECRET` 不写入 SQL、源码或文档。
+- 字段使用 Java 小驼峰与数据库下划线自动映射，Entity 和 SQL 已通过真实业务读写测试交叉验证。
+- 后续结构变化应新增有序迁移脚本，不应改写已经执行过的脚本语义。
+- Learning、Resume、Application 等后续表仍是规划，未写成当前真实结构。

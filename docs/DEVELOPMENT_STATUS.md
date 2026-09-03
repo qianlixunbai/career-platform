@@ -1,65 +1,60 @@
 # 开发状态
 
-> 更新日期：2026-09-02。本文只记录当前真实完成度。项目长期范围和候选设计见[项目规划](PROJECT_PLAN.md)。
+> 更新日期：2026-09-03。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
 
-## 已完成
+## Milestone 2 结论
 
-- 已创建 Spring Boot Maven 项目和 Maven Wrapper。
-- `pom.xml` 已将 Java 版本配置为 21，Spring Boot 父版本为 3.5.14。
-- 已引入 MyBatis-Plus 3.5.17，并从原先规划的 JPA / Repository 方向切换为 MyBatis-Plus / Mapper。
-- 已引入 Spring Web、Bean Validation 和 MySQL 驱动等基础依赖。
-- 按当前已确认的项目数据库基线，MySQL 中已创建数据库 `career_platform`，字符集为 `utf8mb4`，排序规则为 `utf8mb4_unicode_ci`。
-- 已建立数据源基础配置：数据库用户名使用 `${DB_USERNAME:root}`，`DB_USERNAME` 可选且默认 `root`；数据库密码使用 `${DB_PASSWORD}`，`DB_PASSWORD` 必填，仓库中未写入真实密码。
-- `spring.datasource.username` 的重复文本问题已经修复。
-- 按当前已确认的项目数据库基线，已创建当前唯一一张真实业务表 `app_user`。
-- 已创建与该表对应的 `AppUser` Entity，包含数据库映射所需字段和 Getter / Setter。
-- 已创建 `UserStatus` 枚举，当前只有 `ACTIVE` 和 `DISABLED`。
-- Spring Boot 项目已完成过启动验证；这不等同于 MyBatis-Plus → MySQL 真实查询链路已经通过。
-- Git 仓库已初始化，当前分支为 `main`，远程仓库为 `qianlixunbai/career-platform`。
+Milestone 2“最小身份闭环 + 共享基础档案 + 职业探索后端”已完成实现，并通过 Java 21 编译、MockMvc 全链路测试和真实 MySQL 集成测试。没有使用 H2，未实现本里程碑禁止范围内的功能。
 
-### 连接验证边界
+## 已实现并验证
 
-数据库基线使用 `utf8mb4`，而 JDBC URL 当前显式配置为 `characterEncoding=utf8`。这不改变已经创建的数据库字符集，也不据此断言连接字符集存在问题；连接字符集行为仍需在真实查询链路中核验并按结果对齐。本次不修改 JDBC URL。
+### 用户与身份
 
-数据源配置已经修正，Spring Boot 项目以前也完成过启动验证，但当前尚无 Mapper 执行真实 SQL，因此不能据此写成 MySQL 连接或 MyBatis-Plus → MySQL 查询链路已经验证成功。
+- `POST /api/v1/auth/register`：Bean Validation、BCrypt、重复用户名 409。
+- `POST /api/v1/auth/login`：状态检查、`PasswordEncoder.matches`、统一无效凭证 401、JWT 返回。
+- Bearer Token：JJWT 签名与过期验证；`userId`、`username` claims。
+- `currentUserId`：Interceptor 写 request attribute，Argument Resolver 统一注入 Controller。
+- 除注册、登录外，本轮 `/api/v1/**` API 均受保护；无 Token、非法 Token、过期 Token 返回统一 401。
 
-本次文档任务没有使用数据库凭证连接实时 MySQL，也没有重新执行 `SHOW CREATE TABLE`。上述数据库和表的“已创建”状态来自当前已确认的项目基线；初始化 SQL、Entity 和维护文档已按该基线相互核对。
+### 共享基础档案
 
-## 正在进行
+- `UserProfile` 查询与 upsert。
+- `EducationExperience` 完整 CRUD。
+- 全局 `Skill` 创建与查询，名称唯一。
+- `UserSkill` 完整 CRUD，用户与技能组合唯一，熟练度为有限枚举。
+- `ProjectExperience`、`InternshipExperience`、`CertificateAward` 完整 CRUD。
+- 私有资源均按 `currentUserId` 隔离，跨用户 GET/PUT/DELETE 返回 `RESOURCE_NOT_FOUND`。
 
-- 用户与共享基础档案模块的详细设计和实现。
-- 当前仍处于第一张表和 Entity 阶段，尚未形成完整用户业务链路。
-- 数据库候选表、关系、约束和模块 API 仍需逐步详细设计。
+### 职业探索
 
-## 尚未开始
+- `CareerGoal` 完整 CRUD。
+- 用户私有 `Company` 完整 CRUD；已有 Job 引用时拒绝删除。
+- `Job` 创建、列表、详情、更新、archive、unarchive；只能引用当前用户自己的 Company。
+- `JobRequirement` 与 `JobNote` 完整子资源 CRUD；先验证父 Job owner。
+- `SKILL` 要求必须关联已存在 Skill，其他要求类型不得携带 `skillId`。
 
-- Mapper。
-- Service。
-- Controller。
-- 用户注册。
-- 用户登录。
-- JWT。
-- Spring Security。
-- 除 `app_user` 以外的共享基础档案表和业务实现。
-- 职业探索与目标管理模块。
-- 学习提升管理模块。
-- 简历管理模块。
-- 求职过程管理模块。
-- Vue 3 前端工程和页面。
-- Spring AI 集成和所有 AI 功能。
-- RAG。
-- Agent + Tool Calling。
-- AI Evaluation / A-B 实验。
+### 数据库与映射
 
-## 下一步
+- 依次保留 `001`、`002`、`003` 三个 SQL 文件；没有覆盖历史脚本。
+- MySQL 中已真实应用 12 张新增表。
+- `DatabaseSchemaIntegrationTests` 已从 `information_schema` 验证新增表、14 个外键和 4 个关键唯一索引。
+- `@MapperScan` 已显式覆盖 user、profile、career 三个 mapper 包，Context Test 与业务测试均通过。
 
-近期应只推进最小可验证链路：
+## 当前未实现
 
-1. 核验 JDBC 连接字符集。
-2. 创建 `AppUserMapper`。
-3. 通过真实 SQL 查询验证 MyBatis-Plus → MySQL 链路。
-4. 查询链路通过后，再继续用户模块的 Service / API 设计。
+- Spring Security 完整框架、RBAC、OAuth、Refresh Token、Token 黑名单和复杂 Logout。
+- Learning、Resume、Application、Assessment、Interview、Offer、FinalReview。
+- Vue 3 前端。
+- Spring AI、JD AI 解析、RAG、Embedding、Agent、Tool Calling、AI Evaluation。
+- Redis、MQ、Elasticsearch、管理员后台和 HR 端。
 
-## 当前日志说明
+## 已知技术债
 
-启动时出现 `No MyBatis mapper was found`，原因是仓库当前尚未创建任何 Mapper。这与现阶段代码状态一致，不代表 MyBatis-Plus 依赖或项目初始化失败。创建首个 Mapper 后再重新检查该提示。
+- `ProfileService` 与 `CareerService` 已开始变大，后续模块扩展时可按聚合拆分；本轮为保持课程项目简单未提前抽象。
+- `UserSkill` 列表响应需要逐项读取 Skill，数据量增大后可改为联表查询以消除 N+1。
+- 测试启动时 Mockito 提示未来 JDK 将限制动态加载 agent；当前 Java 21 不影响测试结果，后续升级 JDK/Mockito 时再处理。
+- 当前使用轻量 MVC Interceptor 鉴权；出现 RBAC 或更多认证方式时再评估 Spring Security，不在本轮扩张。
+
+## 下一步建议
+
+先人工 Review 本轮未提交 diff。确认身份边界、API 和数据库关系后，再单独规划下一里程碑；不要在本次修改中顺手加入 Learning、Resume、Application 或 AI 能力。

@@ -13,6 +13,7 @@
 - MyBatis-Plus 3.5.17
 - MySQL
 - Spring Web、Bean Validation
+- BCrypt、JJWT
 - Maven
 - Vue 3（规划）
 - Spring AI（规划）
@@ -38,11 +39,7 @@
 
 ## 当前状态
 
-项目初始化阶段已完成，当前正在进行用户与共享基础档案模块的详细设计和实现。目前仓库处于第一张表和 Entity 阶段：数据库中已创建 `app_user`，代码中已有 `AppUser` 和 `UserStatus`，但 Mapper、Service、Controller、注册登录、JWT/Spring Security、Vue 前端和 AI 能力均尚未实现。
-
-启动日志中的 `No MyBatis mapper was found` 是因为当前尚未创建 Mapper，并非 MyBatis-Plus 本身发生故障。
-
-当前数据源用户名配置已修正为 `${DB_USERNAME:root}`，数据库密码从 `${DB_PASSWORD}` 读取。Spring Boot 项目以前完成过启动验证，但尚未通过 Mapper 执行真实 SQL，因此 MyBatis-Plus → MySQL 的真实查询链路仍待验证。JDBC URL 中显式配置的 `characterEncoding=utf8` 也将在该查询链路建立后结合 `utf8mb4` 数据库核验；当前不据此断言连接字符集存在问题。
+Milestone 2 后端已经实现并通过真实 MySQL 集成测试：包括注册、登录、JWT Bearer 鉴权、统一 `currentUserId`、共享基础档案，以及职业目标、公司、岗位、岗位要求和岗位笔记。当前共 13 张业务表（含 `app_user`），MyBatis-Plus Mapper 已显式注册；Vue、Learning、Resume、Application 和 AI 能力仍未实现。
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
 
@@ -50,10 +47,12 @@
 
 1. 安装 Java 21 和 MySQL。
 2. 创建数据库 `career_platform`，字符集使用 `utf8mb4`，排序规则使用 `utf8mb4_unicode_ci`。
-3. 在该数据库中执行 [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)。
+3. 按编号依次执行 [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)、[`sql/002_create_shared_profile_tables.sql`](sql/002_create_shared_profile_tables.sql) 和 [`sql/003_create_career_exploration_tables.sql`](sql/003_create_career_exploration_tables.sql)。
 4. 通过环境变量提供数据库凭证：
    - `DB_PASSWORD`：必填。
    - `DB_USERNAME`：可选，默认值为 `root`。
+   - `JWT_SECRET`：必填，使用足够长的随机 Secret。
+   - `JWT_EXPIRATION_SECONDS`：可选，默认值为 `3600`。
 5. 执行 `./mvnw spring-boot:run`；Windows PowerShell 可执行 `.\mvnw.cmd spring-boot:run`。
 
 任何真实数据库密码、Token 或 API Key 都不得提交到 Git。文档和示例中也只应使用环境变量名或占位符。
