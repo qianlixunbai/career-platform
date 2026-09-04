@@ -15,7 +15,7 @@
 - Spring Web、Bean Validation
 - BCrypt、JJWT
 - Maven
-- Vue 3 + TypeScript + Vite + Vue Router + Axios + Element Plus（Milestone 5A 工作区实现）
+- Vue 3 + TypeScript + Vite + Vue Router + Axios + Element Plus
 - Spring AI（规划）
 
 ## 核心业务
@@ -41,7 +41,9 @@
 
 Milestone 2 已冻结并以 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e` 固化；Milestone 3 Learning 已冻结并以 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a` 固化。两者均已通过既有真实 MySQL 集成测试。
 
-Milestone 4 Resume 后端已完成并冻结，包含 Resume、ResumeVersion、ResumeContentItem 的归属校验、草稿编辑、生成快照、定稿、复制和状态保护。005 已通过 login-path 幂等应用，真实数据库确认有 22 张 `BASE TABLE`。编译通过；定向 `DatabaseSchemaIntegrationTests` 3 + `ResumeIntegrationTests` 9 共 12 项，以及全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。源码扫描得到 18 个 `@RestController`；MyBatis-Plus Mapper 已显式注册。M4 已以 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56` 固化并 push 到 `main`。Milestone 5A Vue 前端已在工作区实现并通过生产构建；Application 和 AI 能力仍未实现。
+Milestone 4 Resume 后端已完成并冻结，包含 Resume、ResumeVersion、ResumeContentItem 的归属校验、草稿编辑、生成快照、定稿、复制和状态保护。005 已通过 login-path 幂等应用，真实数据库确认有 22 张 `BASE TABLE`。编译通过；定向 `DatabaseSchemaIntegrationTests` 3 + `ResumeIntegrationTests` 9 共 12 项，以及全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。源码扫描得到 18 个 `@RestController`；MyBatis-Plus Mapper 已显式注册。M4 已以 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56` 固化并 push 到 `main`。
+
+Milestone 5A Vue Frontend Foundation 已完成、冻结、commit 并 push 到 `main`，checkpoint 为 `6f503667c0df8b4556fe65c6a6c0a667d85fee81`。当前真实前端有 18 个 routed frontend pages；M5A 既有验证为 `npm run typecheck` PASS、`npm run build` PASS、后端 HTTP smoke 12/12 PASS，P0 = 0、P1 = 0，P2 仅有 Vite 主 chunk 约 1.07 MB warning。Application 和 AI 能力仍未实现。
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
 

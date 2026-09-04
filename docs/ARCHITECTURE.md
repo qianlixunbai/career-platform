@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-04 的实际架构状态：Milestone 2 已冻结于 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e`，Milestone 3 Learning 已冻结于 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a`，两者已有真实 MySQL 集成测试证据。Milestone 4 Resume 已完成并冻结：005 已通过 login-path 幂等应用，真实数据库为 22 张 `BASE TABLE`；编译通过，定向 Schema 3 + Resume 9 共 12 项和全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。M4 已以 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56` 固化并 push 到 `main`。Milestone 5A Vue 前端已在工作区实现并通过生产构建；求职过程和 AI 仍是后续规划。
+本文记录截至 2026-09-04 的实际架构状态：Milestone 2 已冻结于 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e`，Milestone 3 Learning 已冻结于 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a`，两者已有真实 MySQL 集成测试证据。Milestone 4 Resume 已完成并冻结：005 已通过 login-path 幂等应用，真实数据库为 22 张 `BASE TABLE`；编译通过，定向 Schema 3 + Resume 9 共 12 项和全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。M4 已以 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56` 固化并 push 到 `main`。Milestone 5A Vue Frontend Foundation 已完成、冻结、commit 并 push 到 `main`，checkpoint 为 `6f503667c0df8b4556fe65c6a6c0a667d85fee81`；18 个 routed frontend pages 已落地，M5A 既有 typecheck、build 和 HTTP smoke 12/12 验证均通过，P0 = 0、P1 = 0，P2 仅有 Vite 主 chunk 约 1.07 MB warning。Application 和 AI 尚未实现。
 
 ## 技术基线
 
@@ -13,6 +13,10 @@
 - Maven Wrapper
 
 ## 当前分层与模块
+
+### Frontend
+
+当前前端为 Vue 3、TypeScript、Vite、Vue Router、Axios 和 Element Plus，已落地 18 个 routed frontend pages。前端通过 HTTP / JSON REST API 调用 Spring Boot backend。
 
 ```text
 HTTP / JSON
@@ -39,6 +43,8 @@ com.careerplatform
 ├─ learning   周计划、任务、学习记录、周复盘、笔记与资料元数据
 └─ resume     简历、版本、内容快照
 ```
+
+当前 backend package 实际包含 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning` 和 `resume`，尚不包含 `application` 或 `ai`。
 
 当前源码扫描实际包含 18 个 `@RestController`，其中 Learning 提供 6 个、Resume 提供 3 个 Controller。Controller 不直接调用 Mapper，也不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
 
@@ -103,4 +109,4 @@ Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删�
 
 ## 后续规划边界
 
-Application、Assessment、Interview、Offer、Spring AI、RAG 和 Agent 尚未实现。Vue 3 前端已进入 Milestone 5A 工作区实现。未来 AI 输出仍须遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
+Application、Assessment、Interview、Offer、FinalReview、Spring AI、JD AI parsing、AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling 和 AI Evaluation 尚未实现。下一阶段为 Milestone 5B — Application Management。未来 AI 输出仍须遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
