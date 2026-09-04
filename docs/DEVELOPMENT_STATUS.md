@@ -111,7 +111,7 @@ M5B 生产实现已完成并冻结，当前状态为 `FROZEN / COMMITTED / PUSHE
 
 ## Milestone 6A — AI Foundation + JD Structured Parse
 
-当前 working tree 已完成生产实现，尚未 commit/push：
+M6A 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`；commit 为 `feat: add AI JD structured parsing`：
 
 - Spring Boot 保持 `3.5.14`；通过 Spring AI BOM 引入稳定版 `1.1.8` 与 OpenAI Chat starter。
 - AI 默认禁用；DeepSeek 通过 OpenAI-compatible adapter 接入，endpoint 固定为官方地址，生产模型硬锁为 `deepseek-v4-flash`。只有开关、adapter 与 key 来自本地 `AI_*` 环境变量；不存在 model 环境变量、客户端/runtime model override 或 Pro fallback。无 AI 配置及选择 adapter 但无真实 key 的 Spring Context 均已确认可启动。
@@ -124,7 +124,7 @@ M5B 生产实现已完成并冻结，当前状态为 `FROZEN / COMMITTED / PUSHE
 - Spring AI structured-output integration 使用 deterministic `ChatModel` 真实经过 `ChatClient` typed conversion wiring，结果 PASS。
 - 最终真实 MySQL full Maven suite：132 项、Failures 0、Errors 0、Skipped 0，`BUILD SUCCESS`。中间阶段的凭据可见性问题已经解决；随后唯一失败用例确认是测试外层事务导致的 isolation bug，并在改用 `Propagation.NOT_SUPPORTED` 与 committed fixture cleanup 后通过单项、整类及 full suite 验证。Production confirmation code 未修改。
 
-因此 M6A 当前结论为 `GO / READY FOR CHECKPOINT / NOT COMMITTED`。P0 = 0，P1 = 0；P2 保留 Vite 主 chunk warning 与 Mockito dynamic agent future-JDK warning。AI implementation count 已从 0 增至 1；课程最低 3 个，仍至少缺 2 个。
+因此 M6A 当前结论为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `07712a687685e368e35e5c04bb0f294ae218c265`。P0 = 0，P1 = 0；P2 保留 Vite 主 chunk warning 与 Mockito dynamic agent future-JDK warning。AI implementation count 已从 0 增至 1；课程最低 3 个，仍至少缺 2 个。
 
 ## 当前未实现
 
@@ -141,4 +141,4 @@ M5B 生产实现已完成并冻结，当前状态为 `FROZEN / COMMITTED / PUSHE
 
 ## 下一步建议
 
-等待 Tech Lead 确认后单独建立 M6A checkpoint；当前仍不 commit、不 push。后续至少再实现 2 个正式 AI 功能，才满足课程最低 AI 数量要求。
+M6A 已完成并冻结；后续至少再实现 2 个正式 AI 功能，才满足课程最低 AI 数量要求。

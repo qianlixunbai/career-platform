@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-04 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。当前 working tree 已实现 Milestone 6A AI Foundation + JD Structured Parse，并已通过真实 MySQL full Maven、localhost HTTP business smoke 与 authenticated DeepSeek Flash smoke。状态为 `GO / READY FOR CHECKPOINT / NOT COMMITTED`；仍需等待 Tech Lead 确认后另行建立 checkpoint。
+本文记录截至 2026-09-04 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`；commit 为 `feat: add AI JD structured parsing`。该里程碑已通过真实 MySQL full Maven、localhost HTTP business smoke 与 authenticated DeepSeek Flash smoke，状态为 `FROZEN / COMMITTED / PUSHED`。
 
 ## 技术基线
 
