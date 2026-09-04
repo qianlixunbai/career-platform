@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-04 的实际架构状态。Milestone 2、3、4、5A 已分别完成并保留既有 checkpoint。Milestone 5B Application Management 已落地生产实现：006 通过 login-path 连续应用两次，真实数据库为 28 张 `BASE TABLE`；定向真实 MySQL 12 项、全量 Maven test 90 项、frontend typecheck/build 与 real HTTP smoke 12/12 均通过。M5B 当前尚未 commit 或 push，等待 Tech Lead review。AI 尚未实现。
+本文记录截至 2026-09-04 的实际架构状态。Milestone 2、3、4、5A 已分别完成并保留既有 checkpoint。Milestone 5B Application Management 已落地生产实现并完成冻结、commit、push：006 通过 login-path 连续应用两次，真实数据库为 28 张 `BASE TABLE`；定向真实 MySQL 12 项、全量 Maven test 90 项、frontend typecheck/build 与 real HTTP smoke 12/12 均通过。M5B 状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `6225510e51c11f65213e654dcc2dce3f9de45875`。AI 尚未正式实现。
 
 ## 技术基线
 

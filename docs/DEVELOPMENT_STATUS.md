@@ -85,11 +85,13 @@ Milestone 5A Vue Frontend Foundation 已完成并冻结，状态为 `FROZEN / CO
 - P0 = 0，P1 = 0。
 - P2 = 1：Vite 主 chunk 约 1.07 MB warning。该 warning 当前不阻塞项目，本轮不为此重构前端。
 
-以上为 M5A 冻结时的既有验证证据；M5B 将在完成后重新执行前端 typecheck 与 build。
+以上为 M5A 冻结时的既有验证证据；M5B 的验证证据见下节。
 
 ## Milestone 5B Application Management
 
-M5B 生产实现已完成，当前处于 `IMPLEMENTED / VERIFIED / UNCOMMITTED`，等待 Tech Lead review。
+M5B 生产实现已完成并冻结，当前状态为 `FROZEN / COMMITTED / PUSHED`。checkpoint 为 `6225510e51c11f65213e654dcc2dce3f9de45875`，commit 为 `feat: complete application management`。
+
+以下验证证据均已在 M5B Closing Review / checkpoint 前完成；本轮仅同步文档，没有重新执行这些验证。
 
 - 新增 Application、ApplicationStageHistory、Assessment、Interview、Offer、FinalReview 六张表；006 通过 login-path 连续执行两次。
 - Application 只绑定当前 owner 的 Job 与 FINALIZED ResumeVersion，并冻结岗位标题、公司、地点和原始 JD。
@@ -122,4 +124,4 @@ M5B 生产实现已完成，当前处于 `IMPLEMENTED / VERIFIED / UNCOMMITTED`�
 
 ## 下一步建议
 
-下一正式开发任务应进入 AI 能力规划；Application Management 已实现，AI 继续保持未实现的规划边界。
+下一正式开发阶段应进入 AI capability implementation；Application Management 已实现，AI 继续保持未正式实现的规划边界。本轮不实现 AI。

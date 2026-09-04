@@ -116,4 +116,4 @@ Resume 的两个 owner-aware 复合外键均按父键顺序保存列：`(resume_
 - `DB_PASSWORD`、`JWT_SECRET` 不写入 SQL、源码或文档。
 - 字段使用 Java 小驼峰与数据库下划线自动映射，Entity 和 SQL 已通过真实业务读写测试交叉验证。
 - 后续结构变化应新增有序迁移脚本，不应改写已经执行过的脚本语义。
-- 005 是 Resume 的新增有序迁移脚本；Application 等后续表仍是规划，未写成当前真实结构。Learning 六表已由 004 脚本应用并通过 Schema 集成测试。
+- 005 是 Resume 的新增有序迁移脚本；006 是 Application Management 的新增有序迁移脚本，六张 Application 表已应用并通过 Schema 集成测试。Learning 六表已由 004 脚本应用并通过 Schema 集成测试。

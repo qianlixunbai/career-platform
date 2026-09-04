@@ -45,7 +45,7 @@ Milestone 4 Resume 后端已完成并冻结，包含 Resume、ResumeVersion、Re
 
 Milestone 5A Vue Frontend Foundation 已完成、冻结、commit 并 push 到 `main`，checkpoint 为 `6f503667c0df8b4556fe65c6a6c0a667d85fee81`。
 
-Milestone 5B Application Management 已完成生产实现，新增 Application、阶段历史、Assessment、Interview、Offer 与 FinalReview 六张表及真实前端，当前规模为 28 张业务表、23 个 `@RestController`、20 个 routed frontend pages。Application 只绑定当前用户的 FINALIZED ResumeVersion；生成列唯一键与 Job 行锁共同保证同一用户同一岗位最多一条 ongoing Application；状态变化与历史、Offer 终局写入保持同一事务。定向真实 MySQL 测试 12 项与全量 Maven test 90 项均通过；frontend typecheck、build 与 real HTTP smoke 12/12 通过。当前工作树保留待 Tech Lead review，尚未 commit 或 push。AI 能力仍未实现。
+Milestone 5B Application Management 已完成、冻结、commit 并 push 到 `main`，状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `6225510e51c11f65213e654dcc2dce3f9de45875`。本里程碑新增 Application、阶段历史、Assessment、Interview、Offer 与 FinalReview 六张表及真实前端，当前规模为 28 张业务表、23 个 `@RestController`、20 个 routed frontend pages。Application 只绑定当前用户的 FINALIZED ResumeVersion；生成列唯一键与 Job 行锁共同保证同一用户同一岗位最多一条 ongoing Application；状态变化与历史、Offer 终局写入保持同一事务。M5B Closing Review / checkpoint 前的验证证据包括定向真实 MySQL 测试 12 项、全量 Maven test 90 项、frontend typecheck、build 与 real HTTP smoke 12/12 均通过。AI 能力尚未正式实现，下一阶段为 AI / Spring AI milestone。
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
 
