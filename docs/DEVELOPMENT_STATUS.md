@@ -62,22 +62,21 @@ Milestone 3 Learning 已完成并冻结，checkpoint 为 `9959ea40189d1360329ca2
 
 ## Milestone 4 Resume 状态
 
-Resume 后端本轮已完成代码实现，新增 `resume`、`resume_version`、`resume_content_item` 三层资源及三个 Controller：
+Resume 后端已完成并冻结于 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56`，新增 `resume`、`resume_version`、`resume_content_item` 三层资源及三个 Controller：
 
 - Resume 支持按当前用户创建、列表、详情、更新和删除；含 FINALIZED 版本时删除返回 `409 RESOURCE_IN_USE`。
 - ResumeVersion 支持空 DRAFT、共享 Profile 快照生成、列表、详情、更新、复制、定稿和删除；版本号按 Resume 唯一，定稿幂等且保留首次 `finalizedAt`。
 - ResumeContentItem 支持 DRAFT 下创建、列表、详情、更新、删除；生成内容写入持久化 source snapshot，复制后使用独立 item 行。
 - owner-aware composite FK、完整路径父级校验和 FINALIZED 写保护覆盖到 Service 与数据库边界；错误 owner/父级组合返回 404，定稿后写入返回 `409 INVALID_RESOURCE_STATE`。
 - `ResumeIntegrationTests` 覆盖上述 CRUD、快照独立性、复制隔离、越权/错父级、定稿状态、并发版本号和 finalize-vs-item-write race；`DatabaseSchemaIntegrationTests` 已补充三表、关键复合 FK 列序、版本号唯一键、metadata 和三个 Mapper bean 断言。
-- 新增测试已通过 Java/Maven 编译和真实 MySQL 验证：定向 `DatabaseSchemaIntegrationTests` 3 + `ResumeIntegrationTests` 9 共 12 项，Failures 0、Errors 0、Skipped 0；全量 Maven test 81 项，Failures 0、Errors 0、Skipped 0。005 已通过 login-path 幂等应用，数据库确认 22 张 `BASE TABLE`。M4 当前仅为工作区实现与验证，尚未 commit/push 或建立 checkpoint。
+- 新增测试已通过 Java/Maven 编译和真实 MySQL 验证：定向 `DatabaseSchemaIntegrationTests` 3 + `ResumeIntegrationTests` 9 共 12 项，Failures 0、Errors 0、Skipped 0；全量 Maven test 81 项，Failures 0、Errors 0、Skipped 0。005 已通过 login-path 幂等应用，数据库确认 22 张 `BASE TABLE`。M4 已以 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56` 固化并 push 到 `main`。
 
-代码与迁移脚本扫描得到 22 张业务表（含 `app_user`）和 18 个 `@RestController`。Application、Assessment、Interview、Offer、FinalReview、Vue 和 AI 能力仍未实现。
+代码与迁移脚本扫描得到 22 张业务表（含 `app_user`）和 18 个 `@RestController`。Milestone 5A Vue 前端已在工作区实现并通过生产构建；Application、Assessment、Interview、Offer、FinalReview 和 AI 能力仍未实现。
 
 ## 当前未实现
 
 - Spring Security 完整框架、RBAC、OAuth、Refresh Token、Token 黑名单和复杂 Logout。
 - Application、Assessment、Interview、Offer、FinalReview。
-- Vue 3 前端。
 - Spring AI、JD AI 解析、RAG、Embedding、Agent、Tool Calling、AI Evaluation。
 - Redis、MQ、Elasticsearch、管理员后台和 HR 端。
 
@@ -90,4 +89,4 @@ Resume 后端本轮已完成代码实现，新增 `resume`、`resume_version`、
 
 ## 下一步建议
 
-随后人工 Review 本轮工作区 diff，再决定是否 commit；Application、AI 和前端继续保持规划边界。M4 尚未建立 checkpoint。
+随后人工 Review Milestone 5A 前端工作区 diff，再决定是否 commit；Application 和 AI 继续保持规划边界。M4 已建立并 push checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56`。

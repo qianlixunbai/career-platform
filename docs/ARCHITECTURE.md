@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-04 的后端架构：Milestone 2 已冻结于 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e`，Milestone 3 Learning 已冻结于 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a`，两者已有真实 MySQL 集成测试证据。Milestone 4 Resume 已完成工作区代码与验证：005 已通过 login-path 幂等应用，真实数据库为 22 张 `BASE TABLE`；编译通过，定向 Schema 3 + Resume 9 共 12 项和全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。M4 尚未 commit/push 或建立 checkpoint。求职过程、前端和 AI 仍是后续规划，不写作已实现能力。
+本文记录截至 2026-09-04 的实际架构状态：Milestone 2 已冻结于 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e`，Milestone 3 Learning 已冻结于 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a`，两者已有真实 MySQL 集成测试证据。Milestone 4 Resume 已完成并冻结：005 已通过 login-path 幂等应用，真实数据库为 22 张 `BASE TABLE`；编译通过，定向 Schema 3 + Resume 9 共 12 项和全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。M4 已以 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56` 固化并 push 到 `main`。Milestone 5A Vue 前端已在工作区实现并通过生产构建；求职过程和 AI 仍是后续规划。
 
 ## 技术基线
 
@@ -103,4 +103,4 @@ Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删�
 
 ## 后续规划边界
 
-Application、Assessment、Interview、Offer、Vue、Spring AI、RAG 和 Agent 尚未实现。未来 AI 输出仍须遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
+Application、Assessment、Interview、Offer、Spring AI、RAG 和 Agent 尚未实现。Vue 3 前端已进入 Milestone 5A 工作区实现。未来 AI 输出仍须遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
