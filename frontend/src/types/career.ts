@@ -86,6 +86,44 @@ export interface JobRequirementRequest {
   requirementText: string
 }
 
+export type SkillResolutionStatus = 'RESOLVED' | 'UNRESOLVED' | 'NOT_APPLICABLE'
+export type DuplicateStatus = 'NEW' | 'DUPLICATE_EXISTING'
+
+export interface JdRequirementCandidate {
+  requirementType: RequirementType
+  description: string
+  skillName: string | null
+  evidenceQuote: string
+  matchedSkillId: number | null
+  matchedSkillName: string | null
+  resolutionStatus: SkillResolutionStatus
+  duplicateStatus: DuplicateStatus
+  selected: boolean
+}
+
+export interface JdParseResponse {
+  sourceFingerprint: string
+  requirements: JdRequirementCandidate[]
+  warnings: string[]
+}
+
+export interface JdParseConfirmRequirementRequest {
+  selected: boolean
+  requirementType: RequirementType
+  skillId?: number
+  requirementText: string
+}
+
+export interface JdParseConfirmRequest {
+  sourceFingerprint: string
+  requirements: JdParseConfirmRequirementRequest[]
+}
+
+export interface JdParseConfirmResponse {
+  createdCount: number
+  createdRequirements: JobRequirement[]
+}
+
 export interface JobNote {
   id: number
   content: string

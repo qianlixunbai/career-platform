@@ -9,6 +9,8 @@
 
 截至 2026-09-04，真实 MySQL `information_schema` 确认有 28 张 `BASE TABLE`：原有 22 张加 Milestone 5B Application 的 6 张表。006 已通过 login-path 连续应用两次并验证幂等；Application 定向集成测试 8 项与 Schema 测试 4 项共 12 项，以及全量 Maven test 90 项，均为 Failures 0、Errors 0、Skipped 0。全程不使用 H2。
 
+Milestone 6A 不新增 migration 或业务表。JD AI parse candidate 只存在于响应和前端审核状态；用户确认后仍写入既有 `job_requirement`，且不会自动删除/覆盖人工条目。因此业务表数量保持 28。通过 IDEA 运行配置启动的 localhost application 已完成真实 MySQL business smoke，确认 parse 不写要求、confirm 才追加要求；最终真实 MySQL full Maven 为 132 项、Failures 0、Errors 0、Skipped 0。
+
 ## SQL 文件与实际应用状态
 
 | 文件 | 内容 | 状态 |

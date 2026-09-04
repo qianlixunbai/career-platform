@@ -16,7 +16,7 @@
 - BCrypt、JJWT
 - Maven
 - Vue 3 + TypeScript + Vite + Vue Router + Axios + Element Plus
-- Spring AI（规划）
+- Spring AI 1.1.8（OpenAI-compatible Chat、typed structured output）
 
 ## 核心业务
 
@@ -45,7 +45,9 @@ Milestone 4 Resume 后端已完成并冻结，包含 Resume、ResumeVersion、Re
 
 Milestone 5A Vue Frontend Foundation 已完成、冻结、commit 并 push 到 `main`，checkpoint 为 `6f503667c0df8b4556fe65c6a6c0a667d85fee81`。
 
-Milestone 5B Application Management 已完成、冻结、commit 并 push 到 `main`，状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `6225510e51c11f65213e654dcc2dce3f9de45875`。本里程碑新增 Application、阶段历史、Assessment、Interview、Offer 与 FinalReview 六张表及真实前端，当前规模为 28 张业务表、23 个 `@RestController`、20 个 routed frontend pages。Application 只绑定当前用户的 FINALIZED ResumeVersion；生成列唯一键与 Job 行锁共同保证同一用户同一岗位最多一条 ongoing Application；状态变化与历史、Offer 终局写入保持同一事务。M5B Closing Review / checkpoint 前的验证证据包括定向真实 MySQL 测试 12 项、全量 Maven test 90 项、frontend typecheck、build 与 real HTTP smoke 12/12 均通过。AI 能力尚未正式实现，下一阶段为 AI / Spring AI milestone。
+Milestone 5B Application Management 已完成、冻结、commit 并 push 到 `main`，状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `6225510e51c11f65213e654dcc2dce3f9de45875`。本里程碑新增 Application、阶段历史、Assessment、Interview、Offer 与 FinalReview 六张表及真实前端，M5B 冻结规模为 28 张业务表、23 个 `@RestController`、20 个 routed frontend pages。
+
+Milestone 6A 已在当前 working tree 实现第 1 个正式 AI 功能：JD Structured Parse。它采用 Spring AI 1.1.8、provider-neutral `AiChatGateway`、typed structured output、evidence 校验、真实 Skill 匹配、重复检测和 SHA-256 source fingerprint；parse 永不写库，只有用户确认后才在 Java 单事务中追加到既有 `job_requirement`。AI 默认关闭，无 key/provider 时传统系统仍可启动和使用。生产 Provider 固定为 DeepSeek Official API（OpenAI-compatible adapter），模型硬锁为 `deepseek-v4-flash`，不允许客户端、环境变量或 runtime options 覆盖，也没有 Pro fallback。当前规模保持 28 张业务表与 20 个 routed pages，Controller 为 24 个。离线 AI 定向测试、Spring AI structured-output wiring、frontend typecheck/build、localhost HTTP business smoke 与 authenticated DeepSeek Flash smoke 均已通过；parse 前后 `job_requirement` 数量不变、confirm 后按选择增加、stale fingerprint 返回 409、跨用户 Job 返回 404。最终真实 MySQL full Maven 为 132 项、Failures 0、Errors 0、Skipped 0，M6A 状态为 `GO / READY FOR CHECKPOINT / NOT COMMITTED`。
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
 
@@ -59,6 +61,10 @@ Milestone 5B Application Management 已完成、冻结、commit 并 push 到 `ma
    - `DB_USERNAME`：可选，默认值为 `root`。
    - `JWT_SECRET`：必填，使用足够长的随机 Secret。
    - `JWT_EXPIRATION_SECONDS`：可选，默认值为 `3600`。
+   - `AI_JD_PARSE_ENABLED`：可选，默认 `false`。
+   - `AI_CHAT_PROVIDER`：启用时设为 `openai`；默认 `none`。
+   - `AI_API_KEY`：启用真实 Provider 时从本地环境提供，不写入仓库。
+   - DeepSeek endpoint 与生产模型在应用配置中固定为 `https://api.deepseek.com` 和 `deepseek-v4-flash`；不支持 `AI_BASE_URL`、`AI_MODEL` 或客户端动态覆盖。
 5. 执行 `./mvnw spring-boot:run`；Windows PowerShell 可执行 `.\mvnw.cmd spring-boot:run`。
 
 任何真实数据库密码、Token 或 API Key 都不得提交到 Git。文档和示例中也只应使用环境变量名或占位符。

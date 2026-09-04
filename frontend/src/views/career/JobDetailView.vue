@@ -41,7 +41,31 @@
 
       <el-card shadow="never" class="section-card">
         <template #header>
-          <div class="section-heading"><div><h3>岗位要求</h3><p>把 JD 中的要求拆成可跟踪的条目。</p></div><el-button type="primary" @click="openRequirementCreate">新增要求</el-button></div>
+          <div class="section-heading">
+            <div>
+              <h3>岗位要求</h3>
+              <p>把 JD 中的要求拆成可跟踪的条目。</p>
+            </div>
+            <div class="section-actions">
+              <el-button
+                v-if="aiCandidates.length > 0"
+                plain
+                type="info"
+                @click="aiReviewDialogVisible = true"
+              >
+                查看 AI 候选（{{ aiCandidates.length }}）
+              </el-button>
+              <el-button
+                :disabled="!hasRawJd"
+                :loading="aiParsing"
+                type="primary"
+                @click="parseWithAi"
+              >
+                AI 解析 JD
+              </el-button>
+              <el-button type="primary" plain @click="openRequirementCreate">新增要求</el-button>
+            </div>
+          </div>
         </template>
         <div v-loading="requirementsLoading" class="table-wrap">
           <el-empty v-if="!requirementsLoading && requirements.length === 0" description="还没有拆解岗位要求" />
@@ -115,6 +139,124 @@
       <template #footer><el-button @click="requirementDialogVisible = false">取消</el-button><el-button type="primary" :loading="savingRequirement" @click="saveRequirement">保存</el-button></template>
     </el-dialog>
 
+    <el-dialog
+      v-model="aiReviewDialogVisible"
+      title="AI 解析候选"
+      width="900px"
+      top="5vh"
+      destroy-on-close
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        title="AI 生成内容仅作为候选，确认后才会写入岗位要求。"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="ai-review-alert"
+      />
+
+      <el-alert
+        v-if="aiWarnings.length > 0"
+        title="解析提醒"
+        type="info"
+        :closable="false"
+        show-icon
+        class="ai-warning-alert"
+      >
+        <ul class="ai-warning-list">
+          <li v-for="warning in aiWarnings" :key="warning">{{ warning }}</li>
+        </ul>
+      </el-alert>
+
+      <el-empty v-if="aiCandidates.length === 0" description="AI 没有返回可审核的岗位要求" />
+      <div v-else class="ai-candidate-list">
+        <article v-for="candidate in aiCandidates" :key="candidate.key" class="ai-candidate">
+          <div class="ai-candidate__header">
+            <el-checkbox
+              v-model="candidate.selected"
+              :disabled="!canSelectAiCandidate(candidate)"
+              @change="onAiCandidateSelectionChange(candidate)"
+            >
+              采纳此条
+            </el-checkbox>
+            <div class="ai-candidate__status">
+              <el-tag :type="resolutionStatusTag(candidate.resolutionStatus)" size="small">
+                {{ resolutionStatusLabel(candidate.resolutionStatus) }}
+              </el-tag>
+              <el-tag :type="duplicateStatusTag(candidate.duplicateStatus)" size="small">
+                {{ duplicateStatusLabel(candidate.duplicateStatus) }}
+              </el-tag>
+            </div>
+          </div>
+
+          <el-form :model="candidate" label-position="top" class="ai-candidate__form">
+            <div class="ai-candidate__grid">
+              <el-form-item label="要求类型" required>
+                <el-select
+                  v-model="candidate.requirementType"
+                  class="full-width"
+                  placeholder="选择要求类型"
+                  @change="onAiCandidateTypeChange(candidate)"
+                >
+                  <el-option
+                    v-for="option in requirementTypeOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item v-if="candidate.requirementType === 'SKILL'" label="关联技能" required>
+                <el-select
+                  v-model="candidate.skillId"
+                  class="full-width"
+                  filterable
+                  clearable
+                  placeholder="选择技能库中的真实技能"
+                  @change="onAiCandidateSkillChange(candidate)"
+                >
+                  <el-option v-for="skill in skills" :key="skill.id" :label="skill.name" :value="skill.id" />
+                </el-select>
+                <span v-if="skills.length === 0" class="form-tip form-tip--warning">技能库为空，SKILL 候选无法确认。</span>
+              </el-form-item>
+            </div>
+
+            <el-form-item label="要求内容" required>
+              <el-input
+                v-model="candidate.description"
+                type="textarea"
+                :rows="3"
+                maxlength="1000"
+                show-word-limit
+                placeholder="可编辑 AI 提取的要求内容"
+              />
+            </el-form-item>
+
+            <div class="ai-candidate__evidence">
+              <span class="ai-field-label">证据（来自原始 JD）</span>
+              <blockquote>{{ candidate.evidenceQuote }}</blockquote>
+            </div>
+            <div v-if="candidate.requirementType === 'SKILL'" class="ai-candidate__matched-skill">
+              <span class="ai-field-label">AI 识别技能</span>
+              <span>{{ candidate.skillName || '未识别' }}</span>
+            </div>
+          </el-form>
+        </article>
+      </div>
+
+      <template #footer>
+        <el-button @click="aiReviewDialogVisible = false">稍后审核</el-button>
+        <el-button
+          type="primary"
+          :loading="aiConfirming"
+          :disabled="!canConfirmAi"
+          @click="confirmAiCandidates"
+        >
+          确认写入{{ aiSelectedCount > 0 ? ` ${aiSelectedCount} 条` : '' }}
+        </el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="noteDialogVisible" :title="noteEditingId === null ? '新增岗位笔记' : '编辑岗位笔记'" width="560px" destroy-on-close>
       <el-form :model="noteForm" label-position="top" @submit.prevent="saveNote">
         <el-form-item label="笔记内容" required><el-input v-model="noteForm.content" type="textarea" :rows="8" maxlength="16000" show-word-limit placeholder="记录投递渠道、面试反馈、待办事项等" /></el-form-item>
@@ -130,6 +272,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
   archiveJob,
+  confirmAiJobRequirements,
   listCompanies,
   createJobNote,
   createJobRequirement,
@@ -138,6 +281,7 @@ import {
   getJob,
   listJobNotes,
   listJobRequirements,
+  parseJobRequirementsWithAi,
   unarchiveJob,
   updateJobNote,
   updateJobRequirement,
@@ -151,14 +295,25 @@ import type { Resume, ResumeVersion } from '@/types/resume'
 import type { CreateApplicationRequest } from '@/types/application'
 import type {
   Job,
+  DuplicateStatus,
+  JdParseConfirmRequest,
+  JdRequirementCandidate,
   JobNote,
   JobNoteRequest,
   JobRequirement,
   JobRequirementRequest,
   JobType,
   RequirementType,
+  SkillResolutionStatus,
   SourceType,
 } from '@/types/career'
+
+type ElementTagType = 'success' | 'warning' | 'info' | 'danger'
+
+interface AiCandidateDraft extends JdRequirementCandidate {
+  key: number
+  skillId?: number
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -181,12 +336,19 @@ const versionsLoading = ref(false)
 const requirementDialogVisible = ref(false)
 const noteDialogVisible = ref(false)
 const applicationDialogVisible = ref(false)
+const aiReviewDialogVisible = ref(false)
 const requirementEditingId = ref<number | null>(null)
 const noteEditingId = ref<number | null>(null)
 const applicationFormRef = ref<FormInstance>()
+const aiParsing = ref(false)
+const aiConfirming = ref(false)
+const aiSourceFingerprint = ref('')
+const aiCandidates = ref<AiCandidateDraft[]>([])
+const aiWarnings = ref<string[]>([])
 
 const jobId = computed(() => Number(route.params.jobId))
 const companyName = computed(() => companies.value.find((company) => company.id === job.value?.companyId)?.name ?? `公司 #${job.value?.companyId ?? ''}`)
+const hasRawJd = computed(() => Boolean(job.value?.rawJd?.trim()))
 
 const jobTypeOptions: Array<{ value: JobType; label: string }> = [
   { value: 'FULL_TIME', label: '全职' }, { value: 'INTERNSHIP', label: '实习' }, { value: 'CAMPUS', label: '校招' },
@@ -217,11 +379,134 @@ const applicationRules: FormRules = {
 
 const finalizedVersions = computed(() => resumeVersions.value.filter((version) => version.status === 'FINALIZED'))
 const canSubmitApplication = computed(() => Boolean(applicationForm.resumeId && applicationForm.resumeVersionId && finalizedVersions.value.some((version) => version.id === applicationForm.resumeVersionId)))
+const aiSelectedCount = computed(() => aiCandidates.value.filter((candidate) => candidate.selected).length)
+const aiHasInvalidSelectedCandidate = computed(() => aiCandidates.value.some((candidate) => {
+  if (!candidate.selected || !candidate.description.trim()) return candidate.selected
+  return candidate.requirementType === 'SKILL' && !hasValidAiSkill(candidate)
+}))
+const canConfirmAi = computed(() => Boolean(
+  aiSourceFingerprint.value &&
+    aiSelectedCount.value > 0 &&
+    !aiHasInvalidSelectedCandidate.value,
+))
 
 function jobTypeLabel(value: JobType): string { return jobTypeOptions.find((option) => option.value === value)?.label ?? value }
 function sourceTypeLabel(value: SourceType): string { return sourceTypeOptions.find((option) => option.value === value)?.label ?? value }
 function requirementTypeLabel(value: RequirementType): string { return requirementTypeOptions.find((option) => option.value === value)?.label ?? value }
 function skillName(skillId: number | null): string { return skillId === null ? '—' : skills.value.find((skill) => skill.id === skillId)?.name ?? `技能 #${skillId}` }
+
+function hasValidAiSkill(candidate: AiCandidateDraft): boolean {
+  return candidate.requirementType === 'SKILL' && typeof candidate.skillId === 'number' && skills.value.some((skill) => skill.id === candidate.skillId)
+}
+
+function syncAiCandidateSkill(candidate: AiCandidateDraft): void {
+  if (candidate.requirementType !== 'SKILL') {
+    candidate.skillId = undefined
+    candidate.matchedSkillId = null
+    candidate.matchedSkillName = null
+    candidate.resolutionStatus = 'NOT_APPLICABLE'
+    return
+  }
+
+  const matched = skills.value.find((skill) => skill.id === candidate.skillId)
+  candidate.matchedSkillId = matched?.id ?? null
+  candidate.matchedSkillName = matched?.name ?? null
+  candidate.resolutionStatus = matched ? 'RESOLVED' : 'UNRESOLVED'
+  if (!matched) candidate.selected = false
+}
+
+function canSelectAiCandidate(candidate: AiCandidateDraft): boolean {
+  return candidate.requirementType !== 'SKILL' || hasValidAiSkill(candidate)
+}
+
+function onAiCandidateTypeChange(candidate: AiCandidateDraft): void {
+  syncAiCandidateSkill(candidate)
+}
+
+function onAiCandidateSkillChange(candidate: AiCandidateDraft): void {
+  syncAiCandidateSkill(candidate)
+}
+
+function onAiCandidateSelectionChange(candidate: AiCandidateDraft): void {
+  if (candidate.selected && !canSelectAiCandidate(candidate)) candidate.selected = false
+}
+
+function resolutionStatusLabel(status: SkillResolutionStatus): string {
+  if (status === 'RESOLVED') return '技能已匹配'
+  if (status === 'UNRESOLVED') return '技能未匹配'
+  return '无需匹配技能'
+}
+
+function resolutionStatusTag(status: SkillResolutionStatus): ElementTagType {
+  if (status === 'RESOLVED') return 'success'
+  if (status === 'UNRESOLVED') return 'danger'
+  return 'info'
+}
+
+function duplicateStatusLabel(status: DuplicateStatus): string {
+  return status === 'NEW' ? '新要求' : '已有相同要求'
+}
+
+function duplicateStatusTag(status: DuplicateStatus): ElementTagType {
+  return status === 'NEW' ? 'success' : 'warning'
+}
+
+function buildAiConfirmRequirement(candidate: AiCandidateDraft): JdParseConfirmRequest['requirements'][number] {
+  const payload: JdParseConfirmRequest['requirements'][number] = {
+    selected: candidate.selected,
+    requirementType: candidate.requirementType,
+    requirementText: candidate.description.trim(),
+  }
+  if (candidate.requirementType === 'SKILL' && hasValidAiSkill(candidate)) {
+    payload.skillId = candidate.skillId
+  }
+  return payload
+}
+
+async function parseWithAi(): Promise<void> {
+  if (!hasRawJd.value || aiParsing.value) return
+  aiParsing.value = true
+  try {
+    const response = await parseJobRequirementsWithAi(jobId.value)
+    aiSourceFingerprint.value = response.sourceFingerprint
+    aiWarnings.value = [...response.warnings]
+    aiCandidates.value = response.requirements.map((candidate, index) => ({
+      ...candidate,
+      key: index,
+      skillId: candidate.matchedSkillId ?? undefined,
+    }))
+    aiCandidates.value.forEach(syncAiCandidateSkill)
+    aiReviewDialogVisible.value = true
+  } catch {
+    // The response interceptor presents the structured API error. Existing manual requirements remain untouched.
+  } finally {
+    aiParsing.value = false
+  }
+}
+
+async function confirmAiCandidates(): Promise<void> {
+  if (!canConfirmAi.value || aiConfirming.value) return
+  aiConfirming.value = true
+  const payload: JdParseConfirmRequest = {
+    sourceFingerprint: aiSourceFingerprint.value,
+    requirements: aiCandidates.value
+      .filter((candidate) => candidate.selected)
+      .map(buildAiConfirmRequirement),
+  }
+  try {
+    const response = await confirmAiJobRequirements(jobId.value, payload)
+    aiReviewDialogVisible.value = false
+    aiCandidates.value = []
+    aiWarnings.value = []
+    aiSourceFingerprint.value = ''
+    await loadRequirements()
+    ElMessage.success(response.createdCount > 0 ? `已确认 ${response.createdCount} 条岗位要求` : '没有新增岗位要求')
+  } catch {
+    // The response interceptor presents the structured API error; keep the review open for correction or retry.
+  } finally {
+    aiConfirming.value = false
+  }
+}
 
 async function load(): Promise<void> {
   if (!Number.isFinite(jobId.value) || jobId.value <= 0) return
@@ -418,7 +703,22 @@ onMounted(load)
 .job-heading h2, .section-heading h3 { margin: 5px 0 0; color: var(--el-text-color-primary); }
 .job-heading p, .section-heading p { margin: 6px 0 0; color: var(--el-text-color-secondary); font-size: 13px; }
 .job-actions { display: flex; align-items: center; gap: 12px; }
+.section-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .application-alert { margin-bottom: 18px; }
+.ai-review-alert { margin-bottom: 18px; }
+.ai-warning-alert { margin-bottom: 18px; }
+.ai-warning-list { margin: 0; padding-left: 20px; line-height: 1.7; }
+.ai-candidate-list { display: grid; gap: 14px; max-height: min(62vh, 720px); overflow-y: auto; padding: 2px 4px 4px 2px; }
+.ai-candidate { padding: 16px; border: 1px solid var(--el-border-color-light); border-radius: 8px; background: var(--el-bg-color); }
+.ai-candidate__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.ai-candidate__status { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.ai-candidate__form { margin-bottom: 0; }
+.ai-candidate__grid { display: grid; grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1.3fr); gap: 0 16px; }
+.ai-candidate__evidence { margin-top: 2px; padding: 10px 12px; border-radius: 6px; background: var(--el-fill-color-light); }
+.ai-field-label { display: block; margin-bottom: 5px; color: var(--el-text-color-secondary); font-size: 12px; }
+.ai-candidate__evidence blockquote { margin: 0; color: var(--el-text-color-primary); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-candidate__matched-skill { display: flex; gap: 12px; align-items: baseline; margin-top: 12px; color: var(--el-text-color-primary); }
+.ai-candidate__matched-skill .ai-field-label { flex-shrink: 0; margin-bottom: 0; }
 .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .meta-grid div { display: flex; flex-direction: column; gap: 6px; }
 .meta-grid span, .source-link span { color: var(--el-text-color-secondary); font-size: 12px; }
@@ -437,5 +737,11 @@ section h3 { margin: 0 0 12px; font-size: 16px; }
 .full-width { width: 100%; }
 .form-tip { display: block; margin-top: 6px; color: var(--el-text-color-secondary); font-size: 12px; }
 .form-tip--warning { color: var(--el-color-warning); }
-@media (max-width: 760px) { .job-heading, .section-heading { align-items: flex-start; flex-direction: column; } .job-actions { width: 100%; justify-content: space-between; } .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) {
+  .job-heading, .section-heading { align-items: flex-start; flex-direction: column; }
+  .job-actions, .section-actions { width: 100%; justify-content: flex-start; }
+  .section-actions .el-button { flex: 1 1 auto; }
+  .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ai-candidate__grid { grid-template-columns: 1fr; }
+}
 </style>

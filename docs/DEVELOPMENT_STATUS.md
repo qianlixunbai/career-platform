@@ -109,10 +109,27 @@ M5B 生产实现已完成并冻结，当前状态为 `FROZEN / COMMITTED / PUSHE
 
 代码与迁移脚本扫描得到 28 张业务表（含 `app_user`）、23 个 `@RestController` 和 20 个 routed frontend pages。
 
+## Milestone 6A — AI Foundation + JD Structured Parse
+
+当前 working tree 已完成生产实现，尚未 commit/push：
+
+- Spring Boot 保持 `3.5.14`；通过 Spring AI BOM 引入稳定版 `1.1.8` 与 OpenAI Chat starter。
+- AI 默认禁用；DeepSeek 通过 OpenAI-compatible adapter 接入，endpoint 固定为官方地址，生产模型硬锁为 `deepseek-v4-flash`。只有开关、adapter 与 key 来自本地 `AI_*` 环境变量；不存在 model 环境变量、客户端/runtime model override 或 Pro fallback。无 AI 配置及选择 adapter 但无真实 key 的 Spring Context 均已确认可启动。
+- 新增 `AiChatGateway`/`ChatClient` typed structured output、统一 502/503 错误、prompt injection 数据边界与无 tools 配置。
+- 新增 JD parse/confirm API。parse 不写数据库；Java 验证 evidence、Skill resolution、duplicate、output limits 与 source fingerprint；confirm 在显式用户操作后锁 Job、复用 Career requirement validation，并在一个事务中追加 selected requirements。
+- Job Detail 已加入解析、候选审核/编辑/选择、Skill 重映射、证据与 warnings、确认写入以及 AI 不可用降级；routed pages 仍为 20。
+- 离线 AI 定向测试 24 项全部 PASS（service/prompt/gateway/config contract、无 key Context 与无认证 MockMvc）；其中一项使用真实 Spring AI `ChatClient` + fake `ChatModel` 验证 typed conversion，另有断言确认实际 Prompt 强制使用 Flash 且关闭 tool execution。frontend typecheck/build PASS。
+- localhost HTTP business smoke 已通过：register/login、未认证 401、owner Job、跨用户 Job 404、人工 JobRequirement CRUD、真实 JD parse、confirm selected candidate 与 stale fingerprint 409 均符合预期。parse 前后 JobRequirement 数量差为 0，confirm 后差为 1；临时 Job、Company 与 Requirement 已清理。
+- Live Provider Verification 为 `PASS`：经当前 IDEA 启动的 production application 完成 authenticated DeepSeek Official API structured parse，生产模型确认固定为 `deepseek-v4-flash`，typed result、evidence Java 校验与 Skill resolution 均通过，Pro calls 为 0。
+- Spring AI structured-output integration 使用 deterministic `ChatModel` 真实经过 `ChatClient` typed conversion wiring，结果 PASS。
+- 最终真实 MySQL full Maven suite：132 项、Failures 0、Errors 0、Skipped 0，`BUILD SUCCESS`。中间阶段的凭据可见性问题已经解决；随后唯一失败用例确认是测试外层事务导致的 isolation bug，并在改用 `Propagation.NOT_SUPPORTED` 与 committed fixture cleanup 后通过单项、整类及 full suite 验证。Production confirmation code 未修改。
+
+因此 M6A 当前结论为 `GO / READY FOR CHECKPOINT / NOT COMMITTED`。P0 = 0，P1 = 0；P2 保留 Vite 主 chunk warning 与 Mockito dynamic agent future-JDK warning。AI implementation count 已从 0 增至 1；课程最低 3 个，仍至少缺 2 个。
+
 ## 当前未实现
 
 - Spring Security 完整框架、RBAC、OAuth、Refresh Token、Token 黑名单和复杂 Logout。
-- 正式落地 AI 功能当前为 0 个；Spring AI、JD AI 解析、AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling、AI Evaluation 均尚未实现。
+- AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling、AI Evaluation 尚未实现。正式 AI 功能当前为 1 个（JD Structured Parse）。
 - Redis、MQ、Elasticsearch、管理员后台和 HR 端。
 
 ## 已知技术债
@@ -124,4 +141,4 @@ M5B 生产实现已完成并冻结，当前状态为 `FROZEN / COMMITTED / PUSHE
 
 ## 下一步建议
 
-下一正式开发阶段应进入 AI capability implementation；Application Management 已实现，AI 继续保持未正式实现的规划边界。本轮不实现 AI。
+等待 Tech Lead 确认后单独建立 M6A checkpoint；当前仍不 commit、不 push。后续至少再实现 2 个正式 AI 功能，才满足课程最低 AI 数量要求。

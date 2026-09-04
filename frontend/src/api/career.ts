@@ -10,6 +10,9 @@ import type {
   JobRequirement,
   JobRequirementRequest,
   JobRequest,
+  JdParseConfirmRequest,
+  JdParseConfirmResponse,
+  JdParseResponse,
 } from '@/types/career'
 
 type ClientResponse<T> = T | { data: T }
@@ -108,6 +111,14 @@ export function updateJobRequirement(jobId: number, id: number, payload: JobRequ
 
 export function deleteJobRequirement(jobId: number, id: number): Promise<void> {
   return body(client.delete<void>(`/v1/jobs/${jobId}/requirements/${id}`))
+}
+
+export function parseJobRequirementsWithAi(jobId: number): Promise<JdParseResponse> {
+  return body(client.post<JdParseResponse>(`/v1/jobs/${jobId}/ai/jd-parse`))
+}
+
+export function confirmAiJobRequirements(jobId: number, payload: JdParseConfirmRequest): Promise<JdParseConfirmResponse> {
+  return body(client.post<JdParseConfirmResponse>(`/v1/jobs/${jobId}/ai/jd-parse/confirm`, payload))
 }
 
 export function listJobNotes(jobId: number): Promise<JobNote[]> {

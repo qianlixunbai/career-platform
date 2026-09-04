@@ -1,5 +1,8 @@
 package com.careerplatform.common.exception;
 
+import com.careerplatform.ai.exception.AiInvalidResponseException;
+import com.careerplatform.ai.exception.AiProviderException;
+import com.careerplatform.ai.exception.AiServiceUnavailableException;
 import com.careerplatform.auth.UnauthorizedException;
 import com.careerplatform.user.exception.InvalidCredentialsException;
 import com.careerplatform.user.exception.UsernameAlreadyExistsException;
@@ -16,6 +19,21 @@ import java.time.Instant;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AiServiceUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleAiServiceUnavailable(AiServiceUnavailableException exception) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "AI_SERVICE_UNAVAILABLE", exception.getMessage());
+    }
+
+    @ExceptionHandler(AiProviderException.class)
+    public ResponseEntity<ApiErrorResponse> handleAiProviderUnavailable(AiProviderException exception) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "AI_PROVIDER_UNAVAILABLE", "AI Provider 当前不可用，请稍后重试");
+    }
+
+    @ExceptionHandler(AiInvalidResponseException.class)
+    public ResponseEntity<ApiErrorResponse> handleAiInvalidResponse(AiInvalidResponseException exception) {
+        return error(HttpStatus.BAD_GATEWAY, "AI_INVALID_RESPONSE", "AI 返回内容无法安全处理，请重试");
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleResourceNotFound(ResourceNotFoundException exception) {

@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-04 的实际架构状态。Milestone 2、3、4、5A 已分别完成并保留既有 checkpoint。Milestone 5B Application Management 已落地生产实现并完成冻结、commit、push：006 通过 login-path 连续应用两次，真实数据库为 28 张 `BASE TABLE`；定向真实 MySQL 12 项、全量 Maven test 90 项、frontend typecheck/build 与 real HTTP smoke 12/12 均通过。M5B 状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `6225510e51c11f65213e654dcc2dce3f9de45875`。AI 尚未正式实现。
+本文记录截至 2026-09-04 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。当前 working tree 已实现 Milestone 6A AI Foundation + JD Structured Parse，并已通过真实 MySQL full Maven、localhost HTTP business smoke 与 authenticated DeepSeek Flash smoke。状态为 `GO / READY FOR CHECKPOINT / NOT COMMITTED`；仍需等待 Tech Lead 确认后另行建立 checkpoint。
 
 ## 技术基线
 
@@ -42,12 +42,25 @@ com.careerplatform
 ├─ career     职业目标、公司、岗位、要求与笔记
 ├─ learning   周计划、任务、学习记录、周复盘、笔记与资料元数据
 ├─ resume     简历、版本、内容快照
-└─ application 投递、阶段历史、测评、面试、Offer、最终复盘
+├─ application 投递、阶段历史、测评、面试、Offer、最终复盘
+└─ ai          可选 Chat foundation、JD parse/confirm 边界
 ```
 
-当前 backend package 实际包含 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning`、`resume` 和 `application`，尚不包含 `ai`。
+当前 backend package 实际包含 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning`、`resume`、`application` 和 `ai`。
 
-当前源码扫描实际包含 23 个 `@RestController`，其中 Application 提供 5 个 Controller。Controller 不直接调用 Mapper，也不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
+当前源码扫描实际包含 24 个 `@RestController`，其中新增的 `JdAiController` 只承载 JD parse/confirm 两个端点。Controller 不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
+
+## AI Foundation 与 JD Structured Parse 边界
+
+`com.careerplatform.ai` 提供最小 AI 基础设施：配置、provider-neutral `AiChatGateway`、Spring AI `ChatClient` 实现、typed DTO、统一异常以及 JD 专用 service/controller。生产依赖使用 Spring AI BOM `1.1.8` 与 `spring-ai-starter-model-openai`；Spring Boot 保持 `3.5.14`。DeepSeek Official API 通过 OpenAI-compatible adapter 接入；endpoint 固定为 `https://api.deepseek.com`，生产模型硬锁为 `deepseek-v4-flash`。只有启用开关、adapter 选择和 API key 来自 `AI_JD_PARSE_ENABLED`、`AI_CHAT_PROVIDER`、`AI_API_KEY`；客户端、`AI_MODEL`、runtime options 和自动 fallback 都不能改变模型。Gateway 在每次 Prompt 上再次施加内部 Flash 常量并禁用 tool choice/internal tool execution，防止 Spring 标准属性优先级改变实际调用模型。
+
+所有 AI 模型默认 `none`，非 Chat 模型固定禁用；`AI_JD_PARSE_ENABLED` 默认 `false`。无 provider 或 API key 时 gateway 返回 `AI_SERVICE_UNAVAILABLE`，不会阻止 Spring Context 或传统业务启动。Provider failure 映射为 503 `AI_PROVIDER_UNAVAILABLE`，structured output/conversion failure 映射为 502 `AI_INVALID_RESPONSE`，响应不透出 provider 原始认证错误、secret 或 stack trace。
+
+JD parse 使用 `POST /api/v1/jobs/{jobId}/ai/jd-parse`。后端按 `currentUserId` 读取 owner-owned Job，只把当前 `rawJd` 发送给模型。模型 schema 只能产生 `type`、`description`、`skillName`、`evidenceQuote` 和 warnings，不能产生任何可信数据库 ID。Java 随后执行输出数量/长度/enum/nullability 校验、空白和大小写归一化 evidence 子串校验、AI 内部去重、global Skill 名称匹配、现有 requirement 重复检测，并生成 `SHA-256(rawJd)` fingerprint。unsupported evidence 直接丢弃并产生 warning；不存在的 Skill 标记 `UNRESOLVED`，绝不自动创建。
+
+JD 属于不可信用户内容。System instruction 明确禁止执行 JD 中的角色切换、prompt 泄露、secret 请求、schema 修改、联网或工具调用指令，只允许提取显式事实；user prompt 使用清晰 untrusted delimiter。本功能的 `ChatClient` 未注册 tools，因此没有 tool capability。Spring AI OpenAI ChatModel 启动所需的 `ToolCallingManager` 使用空 resolver，生产路径仍没有任何可发现或可调用的 tool。
+
+parse 返回 ephemeral candidate，绝不修改 `job_requirement`。只有用户在 Job Detail 审核、编辑、选择后调用 `POST /api/v1/jobs/{jobId}/ai/jd-parse/confirm` 才会写库。confirm 不调用 AI；它先锁定 owner-owned Job，比较当前 JD fingerprint，再执行 DTO、Skill、重复和既有 `CareerService` requirement 规则，最后在单一事务中追加 selected requirements。旧 fingerprint 返回 409 `INVALID_RESOURCE_STATE`，任一非法项使整批回滚，既有人工 requirement 永不被删除或覆盖。
 
 ## 身份与安全边界
 
@@ -119,4 +132,4 @@ Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删�
 
 ## 后续规划边界
 
-Spring AI、JD AI parsing、AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling 和 AI Evaluation 尚未实现。未来 AI 输出仍须遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
+JD Structured Parse 已作为第 1 个正式 AI 功能实现。AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling 和 AI Evaluation 仍未实现。后续 AI 输出继续遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
