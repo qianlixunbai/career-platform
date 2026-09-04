@@ -6,6 +6,9 @@ import com.careerplatform.learning.mapper.LearningPlanMapper;
 import com.careerplatform.learning.mapper.LearningTaskMapper;
 import com.careerplatform.learning.mapper.StudyRecordMapper;
 import com.careerplatform.learning.mapper.WeeklyReviewMapper;
+import com.careerplatform.resume.mapper.ResumeContentItemMapper;
+import com.careerplatform.resume.mapper.ResumeMapper;
+import com.careerplatform.resume.mapper.ResumeVersionMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -85,6 +88,48 @@ class DatabaseSchemaIntegrationTests {
     private static final List<String> REQUIRED_LEARNING_UNIQUE_INDEXES = List.of(
             "uk_learning_plan_user_week_start",
             "uk_weekly_review_plan_id"
+    );
+
+    private static final List<String> MILESTONE_FOUR_RESUME_TABLES = List.of(
+            "resume",
+            "resume_version",
+            "resume_content_item"
+    );
+
+    private static final List<String> REQUIRED_RESUME_FOREIGN_KEYS = List.of(
+            "fk_resume_user",
+            "fk_resume_version_user",
+            "fk_resume_version_resume_owner",
+            "fk_resume_content_item_user",
+            "fk_resume_content_item_version_owner"
+    );
+
+    private static final List<ResumeForeignKeyColumn> EXPECTED_RESUME_FOREIGN_KEY_COLUMNS = List.of(
+            new ResumeForeignKeyColumn("resume", "fk_resume_user", 1,
+                    "user_id", "app_user", "id"),
+            new ResumeForeignKeyColumn("resume_content_item", "fk_resume_content_item_user", 1,
+                    "user_id", "app_user", "id"),
+            new ResumeForeignKeyColumn("resume_content_item", "fk_resume_content_item_version_owner", 1,
+                    "version_id", "resume_version", "id"),
+            new ResumeForeignKeyColumn("resume_content_item", "fk_resume_content_item_version_owner", 2,
+                    "user_id", "resume_version", "user_id"),
+            new ResumeForeignKeyColumn("resume_version", "fk_resume_version_resume_owner", 1,
+                    "resume_id", "resume", "id"),
+            new ResumeForeignKeyColumn("resume_version", "fk_resume_version_resume_owner", 2,
+                    "user_id", "resume", "user_id"),
+            new ResumeForeignKeyColumn("resume_version", "fk_resume_version_user", 1,
+                    "user_id", "app_user", "id")
+    );
+
+    private static final List<ResumeUniqueIndexColumn> EXPECTED_RESUME_UNIQUE_INDEX_COLUMNS = List.of(
+            new ResumeUniqueIndexColumn("resume_version", "uk_resume_version_resume_no", 1, "resume_id"),
+            new ResumeUniqueIndexColumn("resume_version", "uk_resume_version_resume_no", 2, "version_no")
+    );
+
+    private static final List<ResumeTableMetadata> EXPECTED_RESUME_TABLE_METADATA = List.of(
+            new ResumeTableMetadata("resume", "InnoDB", "utf8mb4_unicode_ci"),
+            new ResumeTableMetadata("resume_content_item", "InnoDB", "utf8mb4_unicode_ci"),
+            new ResumeTableMetadata("resume_version", "InnoDB", "utf8mb4_unicode_ci")
     );
 
     private static final List<LearningForeignKeyColumn> EXPECTED_LEARNING_FOREIGN_KEY_COLUMNS = List.of(
@@ -196,6 +241,15 @@ class DatabaseSchemaIntegrationTests {
 
     @Autowired
     private LearningMaterialMapper learningMaterialMapper;
+
+    @Autowired
+    private ResumeMapper resumeMapper;
+
+    @Autowired
+    private ResumeVersionMapper resumeVersionMapper;
+
+    @Autowired
+    private ResumeContentItemMapper resumeContentItemMapper;
 
     @Test
     void milestoneTwoTablesAndCoreConstraintsShouldExistInRealMySql() {
@@ -321,6 +375,69 @@ class DatabaseSchemaIntegrationTests {
         assertThat(learningMaterialMapper).isNotNull();
     }
 
+    @Test
+    void milestoneFourResumeTablesOwnerAwareConstraintsMetadataAndMappersShouldExistInRealMySql() {
+        List<String> tables = jdbcTemplate.queryForList(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()",
+                String.class
+        );
+        List<String> foreignKeys = jdbcTemplate.queryForList(
+                "SELECT constraint_name FROM information_schema.referential_constraints "
+                        + "WHERE constraint_schema = DATABASE()",
+                String.class
+        );
+        List<ResumeForeignKeyColumn> resumeForeignKeyColumns = jdbcTemplate.query(
+                "SELECT table_name, constraint_name, ordinal_position, column_name, "
+                        + "referenced_table_name, referenced_column_name "
+                        + "FROM information_schema.key_column_usage "
+                        + "WHERE constraint_schema = DATABASE() "
+                        + "AND table_name IN ('resume', 'resume_version', 'resume_content_item') "
+                        + "AND referenced_table_name IS NOT NULL "
+                        + "ORDER BY table_name, constraint_name, ordinal_position",
+                (resultSet, rowNumber) -> new ResumeForeignKeyColumn(
+                        resultSet.getString("table_name"),
+                        resultSet.getString("constraint_name"),
+                        resultSet.getInt("ordinal_position"),
+                        resultSet.getString("column_name"),
+                        resultSet.getString("referenced_table_name"),
+                        resultSet.getString("referenced_column_name")
+                )
+        );
+        List<ResumeUniqueIndexColumn> resumeUniqueIndexColumns = jdbcTemplate.query(
+                "SELECT table_name, index_name, seq_in_index, column_name "
+                        + "FROM information_schema.statistics "
+                        + "WHERE table_schema = DATABASE() AND table_name = 'resume_version' "
+                        + "AND index_name = 'uk_resume_version_resume_no' AND non_unique = 0 "
+                        + "ORDER BY seq_in_index",
+                (resultSet, rowNumber) -> new ResumeUniqueIndexColumn(
+                        resultSet.getString("table_name"),
+                        resultSet.getString("index_name"),
+                        resultSet.getInt("seq_in_index"),
+                        resultSet.getString("column_name")
+                )
+        );
+        List<ResumeTableMetadata> resumeTableMetadata = jdbcTemplate.query(
+                "SELECT table_name, engine, table_collation FROM information_schema.tables "
+                        + "WHERE table_schema = DATABASE() "
+                        + "AND table_name IN ('resume', 'resume_version', 'resume_content_item') "
+                        + "ORDER BY table_name",
+                (resultSet, rowNumber) -> new ResumeTableMetadata(
+                        resultSet.getString("table_name"),
+                        resultSet.getString("engine"),
+                        resultSet.getString("table_collation")
+                )
+        );
+
+        assertThat(tables).containsAll(MILESTONE_FOUR_RESUME_TABLES);
+        assertThat(foreignKeys).containsAll(REQUIRED_RESUME_FOREIGN_KEYS);
+        assertThat(resumeForeignKeyColumns).containsExactlyElementsOf(EXPECTED_RESUME_FOREIGN_KEY_COLUMNS);
+        assertThat(resumeUniqueIndexColumns).containsExactlyElementsOf(EXPECTED_RESUME_UNIQUE_INDEX_COLUMNS);
+        assertThat(resumeTableMetadata).containsExactlyElementsOf(EXPECTED_RESUME_TABLE_METADATA);
+        assertThat(resumeMapper).isNotNull();
+        assertThat(resumeVersionMapper).isNotNull();
+        assertThat(resumeContentItemMapper).isNotNull();
+    }
+
     private record LearningForeignKeyColumn(
             String tableName,
             String constraintName,
@@ -346,5 +463,26 @@ class DatabaseSchemaIntegrationTests {
     }
 
     private record LearningMaterialSourceUrlMetadata(String dataType, Long characterMaximumLength, String isNullable) {
+    }
+
+    private record ResumeForeignKeyColumn(
+            String tableName,
+            String constraintName,
+            int ordinalPosition,
+            String columnName,
+            String referencedTableName,
+            String referencedColumnName
+    ) {
+    }
+
+    private record ResumeUniqueIndexColumn(
+            String tableName,
+            String indexName,
+            int sequenceInIndex,
+            String columnName
+    ) {
+    }
+
+    private record ResumeTableMetadata(String tableName, String engine, String tableCollation) {
     }
 }

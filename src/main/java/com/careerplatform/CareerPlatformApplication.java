@@ -9,7 +9,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
         "com.careerplatform.user.mapper",
         "com.careerplatform.profile.mapper",
         "com.careerplatform.career.mapper",
-        "com.careerplatform.learning.mapper"
+        "com.careerplatform.learning.mapper",
+        "com.careerplatform.resume.mapper"
 })
 public class CareerPlatformApplication {
 

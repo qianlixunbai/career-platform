@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-04 已实现并通过真实 MySQL 集成测试的 Milestone 2 与 Milestone 3 Learning 架构。简历、求职过程、前端和 AI 仍是后续规划，不写作已实现能力。原始开工方案只保留历史设计基线；当前事实以代码、SQL 和持续维护文档为准。
+本文记录截至 2026-09-04 的后端架构：Milestone 2 已冻结于 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e`，Milestone 3 Learning 已冻结于 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a`，两者已有真实 MySQL 集成测试证据。Milestone 4 Resume 已完成工作区代码与验证：005 已通过 login-path 幂等应用，真实数据库为 22 张 `BASE TABLE`；编译通过，定向 Schema 3 + Resume 9 共 12 项和全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。M4 尚未 commit/push 或建立 checkpoint。求职过程、前端和 AI 仍是后续规划，不写作已实现能力。
 
 ## 技术基线
 
@@ -36,10 +36,11 @@ com.careerplatform
 ├─ user       注册、登录、用户数据访问
 ├─ profile    共享基础档案
 ├─ career     职业目标、公司、岗位、要求与笔记
-└─ learning   周计划、任务、学习记录、周复盘、笔记与资料元数据
+├─ learning   周计划、任务、学习记录、周复盘、笔记与资料元数据
+└─ resume     简历、版本、内容快照
 ```
 
-当前源码实际包含 15 个 `@RestController`，其中 Learning 提供 6 个 Controller。Controller 不直接调用 Mapper，也不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
+当前源码扫描实际包含 18 个 `@RestController`，其中 Learning 提供 6 个、Resume 提供 3 个 Controller。Controller 不直接调用 Mapper，也不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
 
 ## 身份与安全边界
 
@@ -82,6 +83,12 @@ Learning 只实现传统学习业务，不包含 AI、RAG、文件上传、向�
 
 Learning 的 Plan 周起止日期要求 `weekEnd >= weekStart`，同一用户同一 `weekStart` 唯一；Task 截止日期必须位于 Plan 闭区间，计划用时为正、排序值不小于零；StudyRecord 时长为正且不会隐式改变 Task 状态。删除 Task 时事务内先解绑 Note/Material 的可选 `taskId`，再删除 Records 和 Task；删除 Plan 时按 Material、Note、Review、Record、Task、Plan 顺序清理全部后代。
 
+## Resume 边界
+
+Resume 后端包含三个持久化层级：`Resume 1 -> n ResumeVersion 1 -> n ResumeContentItem`。所有三张表保留 `user_id`，Service 对每个详情、更新和删除操作都验证完整的 owner 与路径父级；错误 owner、错误 Resume/Version 父子组合统一返回 `404 RESOURCE_NOT_FOUND`。数据库使用 `(resume_id, user_id) -> resume(id, user_id)` 与 `(version_id, user_id) -> resume_version(id, user_id)` 复合外键，`(resume_id, version_no)` 保证同一 Resume 的版本号唯一。
+
+Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删除；FINALIZED 的版本和内容均只读，重复 finalize 保持第一次 `finalizedAt`。生成接口经 ProfileService 读取共享档案，并把 Profile、Education、Skill、Project、Internship、Certificate 内容写入持久化快照；之后修改共享档案不会回写旧版本。复制 FINALIZED 版本会创建新的 DRAFT 版本和新的内容行，目标版本与源版本互不共享行。Resume 含 FINALIZED 版本时拒绝删除并返回 `RESOURCE_IN_USE`。
+
 ## Mapper 注册与异常
 
 应用入口通过显式 `@MapperScan` 注册：
@@ -90,9 +97,10 @@ Learning 的 Plan 周起止日期要求 `weekEnd >= weekStart`，同一用户同
 - `com.careerplatform.profile.mapper`
 - `com.careerplatform.career.mapper`
 - `com.careerplatform.learning.mapper`
+- `com.careerplatform.resume.mapper`
 
-异常继续统一为 `ApiErrorResponse(code, message, timestamp)`，当前覆盖参数校验、非法 JSON/枚举/路径类型、未认证、无效凭证、资源不存在、重复资源和资源被引用等场景。Learning 的 Request DTO 与 Entity 分离，TEXT 请求字段统一限制为 16000 字符，VARCHAR 上限与 SQL 列宽一致；Response DTO 不包含 `userId` 或 `passwordHash`。
+异常继续统一为 `ApiErrorResponse(code, message, timestamp)`，当前覆盖参数校验、非法 JSON/枚举/路径类型、未认证、无效凭证、资源不存在、重复资源、资源被引用和资源状态冲突等场景。Request DTO 与 Entity 分离，TEXT 请求字段统一限制为 16000 字符，VARCHAR 上限与 SQL 列宽一致；Resume 请求 DTO 不接受 `userId`、`status`、`finalizedAt`、`sourceType` 或 `sourceId`，Response DTO 不包含 `userId` 或 `passwordHash`。
 
 ## 后续规划边界
 
-Resume、Application、Assessment、Interview、Offer、Vue、Spring AI、RAG 和 Agent 尚未实现。未来 AI 输出仍须遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
+Application、Assessment、Interview、Offer、Vue、Spring AI、RAG 和 Agent 尚未实现。未来 AI 输出仍须遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。

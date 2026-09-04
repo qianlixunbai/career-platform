@@ -32,6 +32,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT, "RESOURCE_IN_USE", exception.getMessage());
     }
 
+    @ExceptionHandler(InvalidResourceStateException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidResourceState(InvalidResourceStateException exception) {
+        return error(HttpStatus.CONFLICT, "INVALID_RESOURCE_STATE", exception.getMessage());
+    }
+
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidRequest(InvalidRequestException exception) {
         return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", exception.getMessage());

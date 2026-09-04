@@ -103,6 +103,40 @@ public class ProfileService {
                 .eq(EducationExperience::getUserId, userId).orderByDesc(EducationExperience::getId));
     }
 
+    /**
+     * Read the profile facts used by resume generation in deterministic source-id order.
+     * A missing profile is valid; every collection in the snapshot is always non-null.
+     */
+    @Transactional(readOnly = true)
+    public ProfileSnapshot getResumeSnapshot(Long userId) {
+        UserProfile profile = userProfileMapper.selectOne(new LambdaQueryWrapper<UserProfile>()
+                .eq(UserProfile::getUserId, userId));
+        List<EducationExperience> educationExperiences = safeList(educationExperienceMapper.selectList(
+                new LambdaQueryWrapper<EducationExperience>()
+                        .eq(EducationExperience::getUserId, userId)
+                        .orderByAsc(EducationExperience::getId)));
+        List<UserSkillDetail> userSkills = safeList(userSkillMapper.selectList(new LambdaQueryWrapper<UserSkill>()
+                        .eq(UserSkill::getUserId, userId)
+                        .orderByAsc(UserSkill::getId)))
+                .stream()
+                .map(userSkill -> new UserSkillDetail(userSkill, getSkill(userSkill.getSkillId())))
+                .toList();
+        List<ProjectExperience> projectExperiences = safeList(projectExperienceMapper.selectList(
+                new LambdaQueryWrapper<ProjectExperience>()
+                        .eq(ProjectExperience::getUserId, userId)
+                        .orderByAsc(ProjectExperience::getId)));
+        List<InternshipExperience> internshipExperiences = safeList(internshipExperienceMapper.selectList(
+                new LambdaQueryWrapper<InternshipExperience>()
+                        .eq(InternshipExperience::getUserId, userId)
+                        .orderByAsc(InternshipExperience::getId)));
+        List<CertificateAward> certificateAwards = safeList(certificateAwardMapper.selectList(
+                new LambdaQueryWrapper<CertificateAward>()
+                        .eq(CertificateAward::getUserId, userId)
+                        .orderByAsc(CertificateAward::getId)));
+        return new ProfileSnapshot(profile, educationExperiences, userSkills,
+                projectExperiences, internshipExperiences, certificateAwards);
+    }
+
     public EducationExperience getEducation(Long id, Long userId) {
         EducationExperience education = educationExperienceMapper.selectOne(new LambdaQueryWrapper<EducationExperience>()
                 .eq(EducationExperience::getId, id).eq(EducationExperience::getUserId, userId));
@@ -228,5 +262,22 @@ public class ProfileService {
     private void deleteOrNotFound(int affectedRows) { if (affectedRows == 0) throw notFound(); }
     private ResourceNotFoundException notFound() { return new ResourceNotFoundException("资源不存在"); }
 
+    private <T> List<T> safeList(List<T> values) { return values == null ? List.of() : values; }
+
     public record UserSkillDetail(UserSkill userSkill, Skill skill) { }
+
+    public record ProfileSnapshot(UserProfile profile,
+                                  List<EducationExperience> educationExperiences,
+                                  List<UserSkillDetail> userSkills,
+                                  List<ProjectExperience> projectExperiences,
+                                  List<InternshipExperience> internshipExperiences,
+                                  List<CertificateAward> certificateAwards) {
+        public ProfileSnapshot {
+            educationExperiences = educationExperiences == null ? List.of() : List.copyOf(educationExperiences);
+            userSkills = userSkills == null ? List.of() : List.copyOf(userSkills);
+            projectExperiences = projectExperiences == null ? List.of() : List.copyOf(projectExperiences);
+            internshipExperiences = internshipExperiences == null ? List.of() : List.copyOf(internshipExperiences);
+            certificateAwards = certificateAwards == null ? List.of() : List.copyOf(certificateAwards);
+        }
+    }
 }

@@ -39,7 +39,9 @@
 
 ## 当前状态
 
-Milestone 2 后端和 Milestone 3 Learning 已实现并通过真实 MySQL 集成测试：包括注册、登录、JWT Bearer 鉴权、统一 `currentUserId`、共享基础档案、职业目标、公司、岗位、岗位要求、岗位笔记，以及周计划、学习任务、学习记录、周复盘、学习笔记和学习资料元数据。当前实际共 19 张业务表（含 `app_user`），实际包含 15 个 `@RestController`，MyBatis-Plus Mapper 已显式注册；Vue、Resume、Application 和 AI 能力仍未实现。
+Milestone 2 已冻结并以 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e` 固化；Milestone 3 Learning 已冻结并以 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a` 固化。两者均已通过既有真实 MySQL 集成测试。
+
+Milestone 4 Resume 后端代码已完成本轮实现，包含 Resume、ResumeVersion、ResumeContentItem 的归属校验、草稿编辑、生成快照、定稿、复制和状态保护。005 已通过 login-path 幂等应用，真实数据库确认有 22 张 `BASE TABLE`。编译通过；定向 `DatabaseSchemaIntegrationTests` 3 + `ResumeIntegrationTests` 9 共 12 项，以及全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。源码扫描得到 18 个 `@RestController`；MyBatis-Plus Mapper 已显式注册。M4 当前仅为工作区实现与验证，尚未 commit/push 或建立 checkpoint。Application、Vue 和 AI 能力仍未实现。
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
 
@@ -47,7 +49,7 @@ Milestone 2 后端和 Milestone 3 Learning 已实现并通过真实 MySQL 集成
 
 1. 安装 Java 21 和 MySQL。
 2. 创建数据库 `career_platform`，字符集使用 `utf8mb4`，排序规则使用 `utf8mb4_unicode_ci`。
-3. 按编号依次执行 [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)、[`sql/002_create_shared_profile_tables.sql`](sql/002_create_shared_profile_tables.sql)、[`sql/003_create_career_exploration_tables.sql`](sql/003_create_career_exploration_tables.sql) 和 [`sql/004_create_learning_tables.sql`](sql/004_create_learning_tables.sql)。
+3. 按编号依次执行 [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)、[`sql/002_create_shared_profile_tables.sql`](sql/002_create_shared_profile_tables.sql)、[`sql/003_create_career_exploration_tables.sql`](sql/003_create_career_exploration_tables.sql)、[`sql/004_create_learning_tables.sql`](sql/004_create_learning_tables.sql) 和 [`sql/005_create_resume_tables.sql`](sql/005_create_resume_tables.sql)。
 4. 通过环境变量提供数据库凭证：
    - `DB_PASSWORD`：必填。
    - `DB_USERNAME`：可选，默认值为 `root`。

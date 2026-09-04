@@ -7,7 +7,7 @@
 - `BIGINT AUTO_INCREMENT` 主键
 - 数据库密码只从 `${DB_PASSWORD}` 读取
 
-截至 2026-09-04，真实 MySQL `information_schema` 查询确认数据库共有 19 张 `BASE TABLE`：`app_user`、Milestone 2 的 12 张新增表和 Milestone 3 Learning 的 6 张表。业务测试真实经过 Controller、Service、Mapper 和 MySQL；没有使用 H2。
+截至 2026-09-04，真实 MySQL `information_schema` 确认有 22 张 `BASE TABLE`：`app_user`、Milestone 2 的 12 张新增表、Milestone 3 Learning 的 6 张表和 Milestone 4 Resume 的 3 张表。005 已通过 login-path 幂等应用；编译通过，定向 `DatabaseSchemaIntegrationTests` 3 + `ResumeIntegrationTests` 9 共 12 项，以及全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。全程不使用 H2。
 
 ## SQL 文件与实际应用状态
 
@@ -17,6 +17,7 @@
 | `sql/002_create_shared_profile_tables.sql` | 共享档案 7 表 | 已应用并验证 |
 | `sql/003_create_career_exploration_tables.sql` | 职业探索 5 表 | 已应用并验证 |
 | `sql/004_create_learning_tables.sql` | Learning 6 表 | 已应用并验证 |
+| `sql/005_create_resume_tables.sql` | Resume 3 表 | 已通过 login-path 幂等应用并验证 |
 
 脚本均使用 `CREATE TABLE IF NOT EXISTS`，不会删除表或业务数据。已有历史脚本没有被覆盖。
 
@@ -62,6 +63,16 @@ Learning 共 13 个外键，全部为默认 `RESTRICT`（MySQL metadata 的 `NO 
 
 Learning 共 5 个非主键 UNIQUE：`uk_learning_plan_user_week_start`、`uk_learning_plan_id_user_id`、`uk_learning_task_id_user_id`、`uk_learning_task_id_plan_id_user_id`、`uk_weekly_review_plan_id`。其中 owner-aware 目标键用于复合 FK，Review 唯一键保证一个 Plan 至多一份复盘。
 
+### Resume
+
+| 表 | 归属 / 关系 | 关键约束与索引 |
+|---|---|---|
+| `resume` | `app_user` 1 → n | `user_id` FK → `app_user`；`(id, user_id)` UNIQUE 供复合 FK 使用 |
+| `resume_version` | Resume 1 → n | `(resume_id, version_no)` UNIQUE；`(id, user_id)` UNIQUE；`(resume_id, user_id)` 复合 FK → `resume(id, user_id)`；owner FK → `app_user` |
+| `resume_content_item` | ResumeVersion 1 → n | `(version_id, user_id)` 复合 FK → `resume_version(id, user_id)`；owner FK → `app_user` |
+
+Resume 的两个 owner-aware 复合外键均按父键顺序保存列：`(resume_id, user_id)` 与 `(version_id, user_id)`。三张表均为 InnoDB、`utf8mb4_unicode_ci`，默认外键删除规则为 `RESTRICT`（MySQL metadata 显示 `NO ACTION`）。Schema 集成测试会验证三张表、关键复合外键列序、`UNIQUE(resume_id, version_no)`、表 metadata 和三个 Mapper bean；普通非唯一索引不做重复枚举断言。
+
 ## 有限集合
 
 - `app_user.status`：`ACTIVE`、`DISABLED`
@@ -73,6 +84,9 @@ Learning 共 5 个非主键 UNIQUE：`uk_learning_plan_user_week_start`、`uk_le
 - `job_requirement.requirement_type`：`SKILL`、`EDUCATION`、`MAJOR`、`EXPERIENCE`、`LANGUAGE`、`OTHER`
 - `learning_plan.status`：`PLANNED`、`IN_PROGRESS`、`COMPLETED`
 - `learning_task.status`：`TODO`、`IN_PROGRESS`、`DONE`、`SKIPPED`
+- `resume_version.status`：`DRAFT`、`FINALIZED`
+- `resume_content_item.section_type`：`PROFILE`、`EDUCATION`、`SKILL`、`PROJECT`、`INTERNSHIP`、`CERTIFICATE`
+- `resume_content_item.source_type`：`PROFILE`、`EDUCATION`、`SKILL`、`PROJECT`、`INTERNSHIP`、`CERTIFICATE`（手工内容为空）
 
 这些值由 Java enum 和业务校验约束；当前 SQL 没有额外 CHECK 约束。
 
@@ -82,4 +96,4 @@ Learning 共 5 个非主键 UNIQUE：`uk_learning_plan_user_week_start`、`uk_le
 - `DB_PASSWORD`、`JWT_SECRET` 不写入 SQL、源码或文档。
 - 字段使用 Java 小驼峰与数据库下划线自动映射，Entity 和 SQL 已通过真实业务读写测试交叉验证。
 - 后续结构变化应新增有序迁移脚本，不应改写已经执行过的脚本语义。
-- Resume、Application 等后续表仍是规划，未写成当前真实结构；Learning 六表已由 004 脚本应用并通过 Schema 集成测试。
+- 005 是 Resume 的新增有序迁移脚本；Application 等后续表仍是规划，未写成当前真实结构。Learning 六表已由 004 脚本应用并通过 Schema 集成测试。
