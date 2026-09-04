@@ -8,7 +8,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @MapperScan(basePackages = {
         "com.careerplatform.user.mapper",
         "com.careerplatform.profile.mapper",
-        "com.careerplatform.career.mapper"
+        "com.careerplatform.career.mapper",
+        "com.careerplatform.learning.mapper"
 })
 public class CareerPlatformApplication {
 

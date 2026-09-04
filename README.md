@@ -39,7 +39,7 @@
 
 ## 当前状态
 
-Milestone 2 后端已经实现并通过真实 MySQL 集成测试：包括注册、登录、JWT Bearer 鉴权、统一 `currentUserId`、共享基础档案，以及职业目标、公司、岗位、岗位要求和岗位笔记。当前共 13 张业务表（含 `app_user`），MyBatis-Plus Mapper 已显式注册；Vue、Learning、Resume、Application 和 AI 能力仍未实现。
+Milestone 2 后端和 Milestone 3 Learning 已实现并通过真实 MySQL 集成测试：包括注册、登录、JWT Bearer 鉴权、统一 `currentUserId`、共享基础档案、职业目标、公司、岗位、岗位要求、岗位笔记，以及周计划、学习任务、学习记录、周复盘、学习笔记和学习资料元数据。当前实际共 19 张业务表（含 `app_user`），实际包含 15 个 `@RestController`，MyBatis-Plus Mapper 已显式注册；Vue、Resume、Application 和 AI 能力仍未实现。
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
 
@@ -47,7 +47,7 @@ Milestone 2 后端已经实现并通过真实 MySQL 集成测试：包括注册�
 
 1. 安装 Java 21 和 MySQL。
 2. 创建数据库 `career_platform`，字符集使用 `utf8mb4`，排序规则使用 `utf8mb4_unicode_ci`。
-3. 按编号依次执行 [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)、[`sql/002_create_shared_profile_tables.sql`](sql/002_create_shared_profile_tables.sql) 和 [`sql/003_create_career_exploration_tables.sql`](sql/003_create_career_exploration_tables.sql)。
+3. 按编号依次执行 [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)、[`sql/002_create_shared_profile_tables.sql`](sql/002_create_shared_profile_tables.sql)、[`sql/003_create_career_exploration_tables.sql`](sql/003_create_career_exploration_tables.sql) 和 [`sql/004_create_learning_tables.sql`](sql/004_create_learning_tables.sql)。
 4. 通过环境变量提供数据库凭证：
    - `DB_PASSWORD`：必填。
    - `DB_USERNAME`：可选，默认值为 `root`。
