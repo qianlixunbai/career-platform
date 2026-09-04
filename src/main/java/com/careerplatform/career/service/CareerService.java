@@ -18,6 +18,8 @@ import com.careerplatform.career.mapper.CompanyMapper;
 import com.careerplatform.career.mapper.JobMapper;
 import com.careerplatform.career.mapper.JobNoteMapper;
 import com.careerplatform.career.mapper.JobRequirementMapper;
+import com.careerplatform.application.entity.Application;
+import com.careerplatform.application.mapper.ApplicationMapper;
 import com.careerplatform.common.exception.InvalidRequestException;
 import com.careerplatform.common.exception.ResourceInUseException;
 import com.careerplatform.common.exception.ResourceNotFoundException;
@@ -39,16 +41,18 @@ public class CareerService {
     private final JobRequirementMapper jobRequirementMapper;
     private final JobNoteMapper jobNoteMapper;
     private final SkillMapper skillMapper;
+    private final ApplicationMapper applicationMapper;
 
     public CareerService(CareerGoalMapper careerGoalMapper, CompanyMapper companyMapper, JobMapper jobMapper,
                          JobRequirementMapper jobRequirementMapper, JobNoteMapper jobNoteMapper,
-                         SkillMapper skillMapper) {
+                         SkillMapper skillMapper, ApplicationMapper applicationMapper) {
         this.careerGoalMapper = careerGoalMapper;
         this.companyMapper = companyMapper;
         this.jobMapper = jobMapper;
         this.jobRequirementMapper = jobRequirementMapper;
         this.jobNoteMapper = jobNoteMapper;
         this.skillMapper = skillMapper;
+        this.applicationMapper = applicationMapper;
     }
 
     @Transactional
@@ -171,6 +175,26 @@ public class CareerService {
                     .eq(Job::getId, id).eq(Job::getUserId, userId)));
         }
         return job;
+    }
+
+    @Transactional
+    public void deleteJob(Long id, Long userId) {
+        Job job = jobMapper.selectOwnedForUpdate(id, userId);
+        if (job == null) { throw notFound(); }
+        Long applications = applicationMapper.selectCount(new LambdaQueryWrapper<Application>()
+                .eq(Application::getJobId, id));
+        if (applications > 0) {
+            throw new ResourceInUseException("岗位已有投递历史，只能归档或隐藏");
+        }
+        try {
+            jobNoteMapper.delete(new LambdaQueryWrapper<JobNote>().eq(JobNote::getJobId, id));
+            jobRequirementMapper.delete(new LambdaQueryWrapper<JobRequirement>()
+                    .eq(JobRequirement::getJobId, id));
+            deleteOrNotFound(jobMapper.delete(new LambdaQueryWrapper<Job>()
+                    .eq(Job::getId, id).eq(Job::getUserId, userId)));
+        } catch (DataIntegrityViolationException exception) {
+            throw new ResourceInUseException("岗位仍被其他资源引用");
+        }
     }
 
     @Transactional

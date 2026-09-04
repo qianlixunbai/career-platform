@@ -17,6 +17,7 @@
             </div>
             <div class="job-actions">
               <el-tag :type="job.archived ? 'info' : 'success'">{{ job.archived ? '已归档' : '进行中' }}</el-tag>
+              <el-button v-if="!job.archived" type="primary" :loading="savingApplication" @click="openApplicationCreate">创建投递</el-button>
               <el-button v-if="!job.archived" type="warning" plain :loading="actionLoading" @click="archive">归档</el-button>
               <el-button v-else type="success" plain :loading="actionLoading" @click="unarchive">恢复</el-button>
             </div>
@@ -67,6 +68,34 @@
       </el-card>
     </template>
 
+    <el-dialog v-model="applicationDialogVisible" title="创建投递" width="620px" destroy-on-close>
+      <el-alert title="投递必须绑定已定稿的简历版本；草稿版本不可用于正式投递。" type="info" :closable="false" show-icon class="application-alert" />
+      <el-form ref="applicationFormRef" :model="applicationForm" :rules="applicationRules" label-position="top" @submit.prevent="submitApplication">
+        <el-form-item label="使用的简历" prop="resumeId">
+          <el-select v-model="applicationForm.resumeId" class="full-width" filterable placeholder="选择一份简历" @change="onResumeChange">
+            <el-option v-for="resume in resumes" :key="resume.id" :label="resume.name" :value="resume.id" />
+          </el-select>
+          <span v-if="resumes.length === 0 && !resumesLoading" class="form-tip">还没有简历，请先前往“简历管理”创建。</span>
+        </el-form-item>
+        <el-form-item label="定稿版本" prop="resumeVersionId">
+          <el-select v-model="applicationForm.resumeVersionId" class="full-width" placeholder="选择已定稿版本" :loading="versionsLoading" :disabled="!applicationForm.resumeId">
+            <el-option
+              v-for="version in resumeVersions"
+              :key="version.id"
+              :label="resumeVersionLabel(version)"
+              :value="version.id"
+              :disabled="version.status !== 'FINALIZED'"
+            />
+          </el-select>
+          <span v-if="applicationForm.resumeId && !versionsLoading && finalizedVersions.length === 0" class="form-tip form-tip--warning">这份简历还没有已定稿版本，请先在简历详情中定稿。</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="applicationDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingApplication" :disabled="!canSubmitApplication" @click="submitApplication">确认创建投递</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="requirementDialogVisible" :title="requirementEditingId === null ? '新增岗位要求' : '编辑岗位要求'" width="520px" destroy-on-close>
       <el-form :model="requirementForm" label-position="top" @submit.prevent="saveRequirement">
         <el-form-item label="要求类型" required>
@@ -98,7 +127,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
   archiveJob,
   listCompanies,
@@ -113,9 +142,13 @@ import {
   updateJobNote,
   updateJobRequirement,
 } from '@/api/career'
+import { createApplication } from '@/api/application'
 import { listSkills } from '@/api/profile'
+import { listResumes, listResumeVersions } from '@/api/resume'
 import type { Company } from '@/types/career'
 import type { Skill } from '@/types/profile'
+import type { Resume, ResumeVersion } from '@/types/resume'
+import type { CreateApplicationRequest } from '@/types/application'
 import type {
   Job,
   JobNote,
@@ -138,12 +171,19 @@ const requirementsLoading = ref(false)
 const notesLoading = ref(false)
 const savingRequirement = ref(false)
 const savingNote = ref(false)
+const savingApplication = ref(false)
 const requirements = ref<JobRequirement[]>([])
 const notes = ref<JobNote[]>([])
+const resumes = ref<Resume[]>([])
+const resumeVersions = ref<ResumeVersion[]>([])
+const resumesLoading = ref(false)
+const versionsLoading = ref(false)
 const requirementDialogVisible = ref(false)
 const noteDialogVisible = ref(false)
+const applicationDialogVisible = ref(false)
 const requirementEditingId = ref<number | null>(null)
 const noteEditingId = ref<number | null>(null)
+const applicationFormRef = ref<FormInstance>()
 
 const jobId = computed(() => Number(route.params.jobId))
 const companyName = computed(() => companies.value.find((company) => company.id === job.value?.companyId)?.name ?? `公司 #${job.value?.companyId ?? ''}`)
@@ -166,6 +206,17 @@ function emptyRequirement(): JobRequirementRequest {
 }
 const requirementForm = reactive<JobRequirementRequest>(emptyRequirement())
 const noteForm = reactive<JobNoteRequest>({ content: '' })
+const applicationForm = reactive<{ resumeId: number | undefined; resumeVersionId: number | undefined }>({
+  resumeId: undefined,
+  resumeVersionId: undefined,
+})
+const applicationRules: FormRules = {
+  resumeId: [{ required: true, message: '请选择简历', trigger: 'change' }],
+  resumeVersionId: [{ required: true, message: '请选择已定稿版本', trigger: 'change' }],
+}
+
+const finalizedVersions = computed(() => resumeVersions.value.filter((version) => version.status === 'FINALIZED'))
+const canSubmitApplication = computed(() => Boolean(applicationForm.resumeId && applicationForm.resumeVersionId && finalizedVersions.value.some((version) => version.id === applicationForm.resumeVersionId)))
 
 function jobTypeLabel(value: JobType): string { return jobTypeOptions.find((option) => option.value === value)?.label ?? value }
 function sourceTypeLabel(value: SourceType): string { return sourceTypeOptions.find((option) => option.value === value)?.label ?? value }
@@ -284,6 +335,76 @@ async function removeNote(row: JobNote): Promise<void> {
   } catch { /* cancellation and interceptor error */ }
 }
 
+function resumeVersionLabel(version: ResumeVersion): string {
+  const name = version.label?.trim() || `版本 ${version.versionNo}`
+  return `${name} · ${version.status === 'FINALIZED' ? '已定稿' : 'DRAFT 草稿'}`
+}
+
+async function loadApplicationResumes(): Promise<void> {
+  resumesLoading.value = true
+  try {
+    resumes.value = await listResumes()
+  } catch {
+    // The response interceptor presents the structured API error.
+  } finally {
+    resumesLoading.value = false
+  }
+}
+
+async function loadResumeVersions(resumeId: number | undefined, preferredVersionId?: number): Promise<void> {
+  resumeVersions.value = []
+  applicationForm.resumeVersionId = undefined
+  if (!resumeId) return
+  versionsLoading.value = true
+  try {
+    resumeVersions.value = await listResumeVersions(resumeId)
+    const preferred = resumeVersions.value.find((version) => version.id === preferredVersionId && version.status === 'FINALIZED')
+    applicationForm.resumeVersionId = preferred?.id ?? finalizedVersions.value[0]?.id
+  } catch {
+    // The response interceptor presents the structured API error.
+  } finally {
+    versionsLoading.value = false
+  }
+}
+
+async function onResumeChange(resumeId: number): Promise<void> {
+  await loadResumeVersions(resumeId)
+}
+
+async function openApplicationCreate(): Promise<void> {
+  applicationForm.resumeId = undefined
+  applicationForm.resumeVersionId = undefined
+  resumeVersions.value = []
+  applicationDialogVisible.value = true
+  await loadApplicationResumes()
+  const firstResumeId = resumes.value[0]?.id
+  if (firstResumeId) {
+    applicationForm.resumeId = firstResumeId
+    await loadResumeVersions(firstResumeId)
+  }
+}
+
+async function submitApplication(): Promise<void> {
+  if (!job.value || !canSubmitApplication.value) return
+  const valid = await applicationFormRef.value?.validate().catch(() => false)
+  if (valid === false) return
+  const payload: CreateApplicationRequest = {
+    jobId: job.value.id,
+    resumeVersionId: applicationForm.resumeVersionId as number,
+  }
+  savingApplication.value = true
+  try {
+    const created = await createApplication(payload)
+    applicationDialogVisible.value = false
+    ElMessage.success('投递已创建')
+    await router.push({ name: 'application-detail', params: { applicationId: created.id } })
+  } catch {
+    // The response interceptor presents the structured API error.
+  } finally {
+    savingApplication.value = false
+  }
+}
+
 watch(jobId, load)
 onMounted(load)
 </script>
@@ -297,6 +418,7 @@ onMounted(load)
 .job-heading h2, .section-heading h3 { margin: 5px 0 0; color: var(--el-text-color-primary); }
 .job-heading p, .section-heading p { margin: 6px 0 0; color: var(--el-text-color-secondary); font-size: 13px; }
 .job-actions { display: flex; align-items: center; gap: 12px; }
+.application-alert { margin-bottom: 18px; }
 .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .meta-grid div { display: flex; flex-direction: column; gap: 6px; }
 .meta-grid span, .source-link span { color: var(--el-text-color-secondary); font-size: 12px; }
@@ -313,5 +435,7 @@ section h3 { margin: 0 0 12px; font-size: 16px; }
 .note-item p { flex: 1; margin: 0; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .note-actions { flex-shrink: 0; }
 .full-width { width: 100%; }
+.form-tip { display: block; margin-top: 6px; color: var(--el-text-color-secondary); font-size: 12px; }
+.form-tip--warning { color: var(--el-color-warning); }
 @media (max-width: 760px) { .job-heading, .section-heading { align-items: flex-start; flex-direction: column; } .job-actions { width: 100%; justify-content: space-between; } .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>

@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-04 的实际架构状态：Milestone 2 已冻结于 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e`，Milestone 3 Learning 已冻结于 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a`，两者已有真实 MySQL 集成测试证据。Milestone 4 Resume 已完成并冻结：005 已通过 login-path 幂等应用，真实数据库为 22 张 `BASE TABLE`；编译通过，定向 Schema 3 + Resume 9 共 12 项和全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。M4 已以 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56` 固化并 push 到 `main`。Milestone 5A Vue Frontend Foundation 已完成、冻结、commit 并 push 到 `main`，checkpoint 为 `6f503667c0df8b4556fe65c6a6c0a667d85fee81`；18 个 routed frontend pages 已落地，M5A 既有 typecheck、build 和 HTTP smoke 12/12 验证均通过，P0 = 0、P1 = 0，P2 仅有 Vite 主 chunk 约 1.07 MB warning。Application 和 AI 尚未实现。
+本文记录截至 2026-09-04 的实际架构状态。Milestone 2、3、4、5A 已分别完成并保留既有 checkpoint。Milestone 5B Application Management 已落地生产实现：006 通过 login-path 连续应用两次，真实数据库为 28 张 `BASE TABLE`；定向真实 MySQL 12 项、全量 Maven test 90 项、frontend typecheck/build 与 real HTTP smoke 12/12 均通过。M5B 当前尚未 commit 或 push，等待 Tech Lead review。AI 尚未实现。
 
 ## 技术基线
 
@@ -16,7 +16,7 @@
 
 ### Frontend
 
-当前前端为 Vue 3、TypeScript、Vite、Vue Router、Axios 和 Element Plus，已落地 18 个 routed frontend pages。前端通过 HTTP / JSON REST API 调用 Spring Boot backend。
+当前前端为 Vue 3、TypeScript、Vite、Vue Router、Axios 和 Element Plus，已落地 20 个 routed frontend pages。前端通过 HTTP / JSON REST API 调用 Spring Boot backend。
 
 ```text
 HTTP / JSON
@@ -41,12 +41,13 @@ com.careerplatform
 ├─ profile    共享基础档案
 ├─ career     职业目标、公司、岗位、要求与笔记
 ├─ learning   周计划、任务、学习记录、周复盘、笔记与资料元数据
-└─ resume     简历、版本、内容快照
+├─ resume     简历、版本、内容快照
+└─ application 投递、阶段历史、测评、面试、Offer、最终复盘
 ```
 
-当前 backend package 实际包含 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning` 和 `resume`，尚不包含 `application` 或 `ai`。
+当前 backend package 实际包含 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning`、`resume` 和 `application`，尚不包含 `ai`。
 
-当前源码扫描实际包含 18 个 `@RestController`，其中 Learning 提供 6 个、Resume 提供 3 个 Controller。Controller 不直接调用 Mapper，也不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
+当前源码扫描实际包含 23 个 `@RestController`，其中 Application 提供 5 个 Controller。Controller 不直接调用 Mapper，也不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
 
 ## 身份与安全边界
 
@@ -71,7 +72,7 @@ com.careerplatform
 
 - `CareerGoal`：用户可维护多个目标与历史方向。
 - `Company`：当前是用户私有收集的信息，不是全站企业库。
-- `Job`：同时属于用户并引用该用户自己的 Company；用 `archived` 保留历史岗位，不提供物理删除端点。
+- `Job`：同时属于用户并引用该用户自己的 Company；用 `archived` 保留历史岗位。没有 Application 历史时允许物理删除；一旦存在任意历史，即使全部 ENDED，也返回 `409 RESOURCE_IN_USE`，只能归档或隐藏。
 - `JobRequirement`：挂在 Job 下；`SKILL` 类型必须引用已存在的全局 Skill，其他类型不得携带 `skillId`。
 - `JobNote`：挂在 Job 下，保存用户自己的岗位观察。
 
@@ -95,6 +96,14 @@ Resume 后端包含三个持久化层级：`Resume 1 -> n ResumeVersion 1 -> n R
 
 Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删除；FINALIZED 的版本和内容均只读，重复 finalize 保持第一次 `finalizedAt`。生成接口经 ProfileService 读取共享档案，并把 Profile、Education、Skill、Project、Internship、Certificate 内容写入持久化快照；之后修改共享档案不会回写旧版本。复制 FINALIZED 版本会创建新的 DRAFT 版本和新的内容行，目标版本与源版本互不共享行。Resume 含 FINALIZED 版本时拒绝删除并返回 `RESOURCE_IN_USE`。
 
+## Application 边界
+
+创建 Application 必须绑定当前用户所属 Job 与 `FINALIZED ResumeVersion`，DRAFT 返回 `409 INVALID_RESOURCE_STATE`。创建时冻结岗位标题、公司名称、地点和原始 JD，并原子写入初始 `APPLIED` History。状态机固定为：`APPLIED -> ASSESSMENT/INTERVIEW/OFFER/ENDED`、`ASSESSMENT -> INTERVIEW/OFFER/ENDED`、`INTERVIEW -> OFFER/ENDED`、`OFFER -> ENDED`、`ENDED -> none`。
+
+同一 `user_id + job_id` 的创建先锁定 Job 行，Service 在事务中检查现有 ongoing Application；数据库以生成列 `ongoing_job_id = CASE WHEN current_stage <> 'ENDED' THEN job_id ELSE NULL END` 和 `UNIQUE(user_id, ongoing_job_id)` 提供最终并发防线。转为 ENDED 后生成列为 NULL，允许以后再次投递。Job 创建投递与物理删除共用同一父行锁，避免“删除检查”和“创建投递”竞态。
+
+所有显式迁移都先 `FOR UPDATE` 锁定 owner 匹配的 Application，并在同一事务内更新 `currentStage`、终局字段和追加 History。Assessment、Interview 的创建或局部结果更新不触发全局状态。Offer 创建固定为 CONSIDERING 并推进至 OFFER；ACCEPTED/REJECTED 会在同一事务内终结 Offer、Application 并追加 History。FinalReview 采用 `GET + PUT upsert`，仅 ENDED 后可写，数据库 `UNIQUE(application_id)` 保证 0..1。
+
 ## Mapper 注册与异常
 
 应用入口通过显式 `@MapperScan` 注册：
@@ -104,9 +113,10 @@ Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删�
 - `com.careerplatform.career.mapper`
 - `com.careerplatform.learning.mapper`
 - `com.careerplatform.resume.mapper`
+- `com.careerplatform.application.mapper`
 
 异常继续统一为 `ApiErrorResponse(code, message, timestamp)`，当前覆盖参数校验、非法 JSON/枚举/路径类型、未认证、无效凭证、资源不存在、重复资源、资源被引用和资源状态冲突等场景。Request DTO 与 Entity 分离，TEXT 请求字段统一限制为 16000 字符，VARCHAR 上限与 SQL 列宽一致；Resume 请求 DTO 不接受 `userId`、`status`、`finalizedAt`、`sourceType` 或 `sourceId`，Response DTO 不包含 `userId` 或 `passwordHash`。
 
 ## 后续规划边界
 
-Application、Assessment、Interview、Offer、FinalReview、Spring AI、JD AI parsing、AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling 和 AI Evaluation 尚未实现。下一阶段为 Milestone 5B — Application Management。未来 AI 输出仍须遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
+Spring AI、JD AI parsing、AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling 和 AI Evaluation 尚未实现。未来 AI 输出仍须遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。

@@ -80,6 +80,7 @@ import {
   Medal,
   Notebook,
   OfficeBuilding,
+  Promotion,
   Reading,
   School,
   Star,
@@ -136,6 +137,10 @@ const navigationGroups: NavigationGroup[] = [
     label: '简历',
     items: [{ label: '简历管理', path: '/resumes', icon: Files }],
   },
+  {
+    label: '求职管理',
+    items: [{ label: '投递管理', path: '/applications', icon: Promotion }],
+  },
 ]
 
 const activePath = computed(() => {
@@ -147,6 +152,9 @@ const activePath = computed(() => {
   }
   if (route.path.startsWith('/resumes/')) {
     return '/resumes'
+  }
+  if (route.path.startsWith('/applications/')) {
+    return '/applications'
   }
   return route.path
 })

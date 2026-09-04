@@ -9,6 +9,12 @@ import com.careerplatform.learning.mapper.WeeklyReviewMapper;
 import com.careerplatform.resume.mapper.ResumeContentItemMapper;
 import com.careerplatform.resume.mapper.ResumeMapper;
 import com.careerplatform.resume.mapper.ResumeVersionMapper;
+import com.careerplatform.application.mapper.ApplicationMapper;
+import com.careerplatform.application.mapper.ApplicationStageHistoryMapper;
+import com.careerplatform.application.mapper.AssessmentMapper;
+import com.careerplatform.application.mapper.FinalReviewMapper;
+import com.careerplatform.application.mapper.InterviewMapper;
+import com.careerplatform.application.mapper.OfferMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -251,6 +257,82 @@ class DatabaseSchemaIntegrationTests {
     @Autowired
     private ResumeContentItemMapper resumeContentItemMapper;
 
+    @Autowired private ApplicationMapper applicationMapper;
+    @Autowired private ApplicationStageHistoryMapper applicationStageHistoryMapper;
+    @Autowired private AssessmentMapper assessmentMapper;
+    @Autowired private InterviewMapper interviewMapper;
+    @Autowired private OfferMapper offerMapper;
+    @Autowired private FinalReviewMapper finalReviewMapper;
+
+    @Test
+    void milestoneFiveBApplicationSchemaAndMappersShouldExistInRealMySql() {
+        List<String> applicationTables = jdbcTemplate.queryForList(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() "
+                        + "AND table_name IN ('application','application_stage_history','assessment','interview','offer','final_review')",
+                String.class);
+        assertThat(applicationTables).containsExactlyInAnyOrder(
+                "application", "application_stage_history", "assessment", "interview", "offer", "final_review");
+
+        Integer businessTableCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'",
+                Integer.class);
+        assertThat(businessTableCount).isEqualTo(28);
+
+        List<String> foreignKeys = jdbcTemplate.queryForList(
+                "SELECT constraint_name FROM information_schema.referential_constraints "
+                        + "WHERE constraint_schema = DATABASE() AND table_name IN "
+                        + "('application','application_stage_history','assessment','interview','offer','final_review')",
+                String.class);
+        assertThat(foreignKeys).contains(
+                "fk_application_user", "fk_application_job", "fk_application_resume_version_owner",
+                "fk_application_stage_history_user", "fk_application_stage_history_application_owner",
+                "fk_assessment_user", "fk_assessment_application_owner",
+                "fk_interview_user", "fk_interview_application_owner",
+                "fk_offer_user", "fk_offer_application_owner",
+                "fk_final_review_user", "fk_final_review_application_owner");
+
+        List<String> uniqueIndexes = jdbcTemplate.queryForList(
+                "SELECT DISTINCT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() "
+                        + "AND non_unique = 0 AND table_name IN ('application','offer','final_review')",
+                String.class);
+        assertThat(uniqueIndexes).contains("uk_application_id_user_id", "uk_application_user_ongoing_job_id",
+                "uk_offer_application_id", "uk_final_review_application_id");
+
+        List<String> resumeOwnerColumns = jdbcTemplate.queryForList(
+                "SELECT column_name FROM information_schema.key_column_usage WHERE constraint_schema = DATABASE() "
+                        + "AND table_name = 'application' AND constraint_name = 'fk_application_resume_version_owner' "
+                        + "ORDER BY ordinal_position",
+                String.class);
+        assertThat(resumeOwnerColumns).containsExactly("resume_version_id", "user_id");
+
+        List<String> childOwnerForeignKeys = List.of(
+                "fk_application_stage_history_application_owner", "fk_assessment_application_owner",
+                "fk_interview_application_owner", "fk_offer_application_owner",
+                "fk_final_review_application_owner");
+        for (String foreignKey : childOwnerForeignKeys) {
+            Integer columnCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.key_column_usage WHERE constraint_schema = DATABASE() "
+                            + "AND constraint_name = ? AND referenced_table_name = 'application'",
+                    Integer.class, foreignKey);
+            assertThat(columnCount).as(foreignKey).isEqualTo(2);
+        }
+
+        GeneratedColumnMetadata generatedColumn = jdbcTemplate.queryForObject(
+                "SELECT extra, generation_expression FROM information_schema.columns WHERE table_schema = DATABASE() "
+                        + "AND table_name = 'application' AND column_name = 'ongoing_job_id'",
+                (resultSet, rowNumber) -> new GeneratedColumnMetadata(
+                        resultSet.getString("extra"), resultSet.getString("generation_expression")));
+        assertThat(generatedColumn.extra()).containsIgnoringCase("STORED GENERATED");
+        assertThat(generatedColumn.expression()).containsIgnoringCase("current_stage").containsIgnoringCase("job_id");
+
+        assertThat(applicationMapper).isNotNull();
+        assertThat(applicationStageHistoryMapper).isNotNull();
+        assertThat(assessmentMapper).isNotNull();
+        assertThat(interviewMapper).isNotNull();
+        assertThat(offerMapper).isNotNull();
+        assertThat(finalReviewMapper).isNotNull();
+    }
+
     @Test
     void milestoneTwoTablesAndCoreConstraintsShouldExistInRealMySql() {
         List<String> tables = jdbcTemplate.queryForList(
@@ -484,5 +566,8 @@ class DatabaseSchemaIntegrationTests {
     }
 
     private record ResumeTableMetadata(String tableName, String engine, String tableCollation) {
+    }
+
+    private record GeneratedColumnMetadata(String extra, String expression) {
     }
 }

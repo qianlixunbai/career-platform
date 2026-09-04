@@ -4,6 +4,13 @@ import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { clearSession, getToken } from '@/utils/auth'
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    /** HTTP statuses that should not produce a global toast for this request. */
+    silentStatuses?: number[]
+  }
+}
+
 export interface ApiErrorResponse {
   code?: string
   message?: string
@@ -55,10 +62,14 @@ apiClient.interceptors.response.use(
   (error: unknown) => {
     const status = axios.isAxiosError(error) ? error.response?.status : undefined
     const message = getApiErrorMessage(error)
+    const requestConfig = axios.isAxiosError(error) ? error.config : undefined
+    const isSilent = status !== undefined && requestConfig?.silentStatuses?.includes(status)
 
     if (status === 401) {
       clearSession()
-      ElMessage.error(message)
+      if (!isSilent) {
+        ElMessage.error(message)
+      }
 
       const currentPath = typeof window === 'undefined' ? '' : window.location.pathname
       const isAuthPage = currentPath === '/login' || currentPath === '/register'
@@ -66,7 +77,7 @@ apiClient.interceptors.response.use(
         const redirect = router.currentRoute.value.fullPath
         void router.replace({ name: 'login', query: redirect === '/login' ? undefined : { redirect } })
       }
-    } else {
+    } else if (!isSilent) {
       ElMessage.error(message)
     }
 

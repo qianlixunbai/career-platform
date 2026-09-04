@@ -85,16 +85,31 @@ Milestone 5A Vue Frontend Foundation 已完成并冻结，状态为 `FROZEN / CO
 - P0 = 0，P1 = 0。
 - P2 = 1：Vite 主 chunk 约 1.07 MB warning。该 warning 当前不阻塞项目，本轮不为此重构前端。
 
-以上为 M5A 冻结时的既有验证证据；本轮仅同步文档，未重新执行测试或构建。
+以上为 M5A 冻结时的既有验证证据；M5B 将在完成后重新执行前端 typecheck 与 build。
 
-Application、Assessment、Interview、Offer、FinalReview 和 AI 能力仍未实现。
+## Milestone 5B Application Management
 
-代码与迁移脚本扫描得到 22 张业务表（含 `app_user`）和 18 个 `@RestController`；M5A 已落地 18 个 routed frontend pages。
+M5B 生产实现已完成，当前处于 `IMPLEMENTED / VERIFIED / UNCOMMITTED`，等待 Tech Lead review。
+
+- 新增 Application、ApplicationStageHistory、Assessment、Interview、Offer、FinalReview 六张表；006 通过 login-path 连续执行两次。
+- Application 只绑定当前 owner 的 Job 与 FINALIZED ResumeVersion，并冻结岗位标题、公司、地点和原始 JD。
+- 同 user+job ongoing 唯一由 Job 行锁、事务内检查、generated column 唯一键三层保证；真实双线程测试严格得到一成功、一 `DUPLICATE_RESOURCE`，数据库 ongoing count = 1。
+- 状态机支持向前跳级，ENDED 为终态；currentStage 更新与 History 追加原子提交，非法迁移不留下半写历史。
+- Assessment/Interview 是独立过程记录，不隐式推进或终结 Application。
+- Offer 为 0..1；创建进入 OFFER，ACCEPTED/REJECTED 与 Application ENDED、History 同事务。
+- FinalReview 为 0..1 `GET + PUT upsert`，仅 ENDED 后可写。
+- Job 无 Application 历史时可物理删除；存在任意历史时返回 `409 RESOURCE_IN_USE`，ENDED 历史也阻止删除。
+- 新增 5 个 Application Controller 与 2 个真实前端路由；Job detail 可选择 FINALIZED ResumeVersion 创建投递，详情页管理完整流程。
+- 定向真实 MySQL：`ApplicationIntegrationTests` 8 + `DatabaseSchemaIntegrationTests` 4，共 12 项，Failures 0、Errors 0、Skipped 0。
+- 全量 Maven test：90 项，Failures 0、Errors 0、Skipped 0。
+- Frontend：`npm run typecheck` PASS；`npm run build` PASS，保留既有约 1.07 MB 主 chunk warning。
+- Real HTTP smoke：注册/登录、Job、FINALIZED ResumeVersion、Application 创建与迁移、Assessment、Interview、Offer 接受并结束、FinalReview、Job 历史删除保护、未认证 401，共 12/12 PASS。
+
+代码与迁移脚本扫描得到 28 张业务表（含 `app_user`）、23 个 `@RestController` 和 20 个 routed frontend pages。
 
 ## 当前未实现
 
 - Spring Security 完整框架、RBAC、OAuth、Refresh Token、Token 黑名单和复杂 Logout。
-- Application、Assessment、Interview、Offer、FinalReview。
 - 正式落地 AI 功能当前为 0 个；Spring AI、JD AI 解析、AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling、AI Evaluation 均尚未实现。
 - Redis、MQ、Elasticsearch、管理员后台和 HR 端。
 
@@ -107,4 +122,4 @@ Application、Assessment、Interview、Offer、FinalReview 和 AI 能力仍未�
 
 ## 下一步建议
 
-下一正式开发任务为 Milestone 5B — Application Management。Application 和 AI 继续保持未实现的规划边界。
+下一正式开发任务应进入 AI 能力规划；Application Management 已实现，AI 继续保持未实现的规划边界。

@@ -107,6 +107,16 @@ const routes: RouteRecordRaw[] = [
         name: 'resume-detail',
         component: () => import('@/views/resume/ResumeDetailView.vue'),
       },
+      {
+        path: 'applications',
+        name: 'applications',
+        component: () => import('@/views/application/ApplicationsView.vue'),
+      },
+      {
+        path: 'applications/:applicationId',
+        name: 'application-detail',
+        component: () => import('@/views/application/ApplicationDetailView.vue'),
+      },
     ],
   },
   {

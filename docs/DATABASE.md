@@ -7,7 +7,7 @@
 - `BIGINT AUTO_INCREMENT` 主键
 - 数据库密码只从 `${DB_PASSWORD}` 读取
 
-截至 2026-09-04，真实 MySQL `information_schema` 确认有 22 张 `BASE TABLE`：`app_user`、Milestone 2 的 12 张新增表、Milestone 3 Learning 的 6 张表和 Milestone 4 Resume 的 3 张表。005 已通过 login-path 幂等应用；编译通过，定向 `DatabaseSchemaIntegrationTests` 3 + `ResumeIntegrationTests` 9 共 12 项，以及全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。全程不使用 H2。
+截至 2026-09-04，真实 MySQL `information_schema` 确认有 28 张 `BASE TABLE`：原有 22 张加 Milestone 5B Application 的 6 张表。006 已通过 login-path 连续应用两次并验证幂等；Application 定向集成测试 8 项与 Schema 测试 4 项共 12 项，以及全量 Maven test 90 项，均为 Failures 0、Errors 0、Skipped 0。全程不使用 H2。
 
 ## SQL 文件与实际应用状态
 
@@ -18,6 +18,7 @@
 | `sql/003_create_career_exploration_tables.sql` | 职业探索 5 表 | 已应用并验证 |
 | `sql/004_create_learning_tables.sql` | Learning 6 表 | 已应用并验证 |
 | `sql/005_create_resume_tables.sql` | Resume 3 表 | 已通过 login-path 幂等应用并验证 |
+| `sql/006_create_application_tables.sql` | Application Management 6 表 | 已通过 login-path 连续应用两次并验证 |
 
 脚本均使用 `CREATE TABLE IF NOT EXISTS`，不会删除表或业务数据。已有历史脚本没有被覆盖。
 
@@ -73,6 +74,19 @@ Learning 共 5 个非主键 UNIQUE：`uk_learning_plan_user_week_start`、`uk_le
 
 Resume 的两个 owner-aware 复合外键均按父键顺序保存列：`(resume_id, user_id)` 与 `(version_id, user_id)`。三张表均为 InnoDB、`utf8mb4_unicode_ci`，默认外键删除规则为 `RESTRICT`（MySQL metadata 显示 `NO ACTION`）。Schema 集成测试会验证三张表、关键复合外键列序、`UNIQUE(resume_id, version_no)`、表 metadata 和三个 Mapper bean；普通非唯一索引不做重复枚举断言。
 
+### Application Management
+
+| 表 | 归属 / 关系 | 关键约束与索引 |
+|---|---|---|
+| `application` | 用户、Job、FINALIZED ResumeVersion | `(id,user_id)` UNIQUE；`(user_id,ongoing_job_id)` UNIQUE；Job FK；ResumeVersion owner 复合 FK；用户/阶段与 Job 查询索引 |
+| `application_stage_history` | Application 1 → n | `(application_id,user_id)` owner 复合 FK；按 changed_at/id 追加查询索引 |
+| `assessment` | Application 1 → n | Application owner 复合 FK；scheduled_at 查询索引 |
+| `interview` | Application 1 → n | Application owner 复合 FK；round_no 查询索引 |
+| `offer` | Application 1 → 0..1 | `application_id` UNIQUE；Application owner 复合 FK |
+| `final_review` | Application 1 → 0..1 | `application_id` UNIQUE；Application owner 复合 FK |
+
+`application.ongoing_job_id` 是 STORED generated column：进行中时等于 `job_id`，ENDED 时为 NULL。MySQL UNIQUE 允许多行 NULL，因此同一用户同一岗位最多一条 ongoing，同时可保留多条 ENDED 历史。Service 的 Job 行锁负责将同一父资源的创建与删除顺序化，生成列唯一键负责拦截遗漏或竞争条件下的重复写入，事务负责让 Application/Offer 状态与 StageHistory 原子提交。
+
 ## 有限集合
 
 - `app_user.status`：`ACTIVE`、`DISABLED`
@@ -87,6 +101,12 @@ Resume 的两个 owner-aware 复合外键均按父键顺序保存列：`(resume_
 - `resume_version.status`：`DRAFT`、`FINALIZED`
 - `resume_content_item.section_type`：`PROFILE`、`EDUCATION`、`SKILL`、`PROJECT`、`INTERNSHIP`、`CERTIFICATE`
 - `resume_content_item.source_type`：`PROFILE`、`EDUCATION`、`SKILL`、`PROJECT`、`INTERNSHIP`、`CERTIFICATE`（手工内容为空）
+- `application.current_stage`：`APPLIED`、`ASSESSMENT`、`INTERVIEW`、`OFFER`、`ENDED`
+- `offer.status`：`CONSIDERING`、`ACCEPTED`、`REJECTED`
+- `assessment.type`：`ONLINE_ASSESSMENT`、`WRITTEN_TEST`、`CODING_TEST`、`OTHER`
+- `assessment.result`：`PENDING`、`PASSED`、`FAILED`、`OTHER`
+- `interview.type`：`HR`、`TECHNICAL`、`MANAGER`、`FINAL`、`OTHER`
+- `interview.result`：`PENDING`、`PASSED`、`REJECTED`、`OTHER`
 
 这些值由 Java enum 和业务校验约束；当前 SQL 没有额外 CHECK 约束。
 

@@ -38,6 +38,7 @@ public class JobController {
     @PutMapping("/{id}") public JobResponse update(@PathVariable Long id, @CurrentUserId Long currentUserId, @Valid @RequestBody JobRequest request) { return toResponse(careerService.updateJob(id, currentUserId, request)); }
     @PatchMapping("/{id}/archive") public JobResponse archive(@PathVariable Long id, @CurrentUserId Long currentUserId) { return toResponse(careerService.setArchived(id, currentUserId, true)); }
     @PatchMapping("/{id}/unarchive") public JobResponse unarchive(@PathVariable Long id, @CurrentUserId Long currentUserId) { return toResponse(careerService.setArchived(id, currentUserId, false)); }
+    @DeleteMapping("/{id}") public ResponseEntity<Void> delete(@PathVariable Long id, @CurrentUserId Long currentUserId) { careerService.deleteJob(id, currentUserId); return ResponseEntity.noContent().build(); }
 
     @PostMapping("/{jobId}/requirements") public ResponseEntity<JobRequirementResponse> createRequirement(@PathVariable Long jobId, @CurrentUserId Long currentUserId, @Valid @RequestBody JobRequirementRequest request) { return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(careerService.createRequirement(jobId, currentUserId, request))); }
     @GetMapping("/{jobId}/requirements") public List<JobRequirementResponse> listRequirements(@PathVariable Long jobId, @CurrentUserId Long currentUserId) { return careerService.listRequirements(jobId, currentUserId).stream().map(this::toResponse).toList(); }

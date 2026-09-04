@@ -43,7 +43,9 @@ Milestone 2 已冻结并以 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e
 
 Milestone 4 Resume 后端已完成并冻结，包含 Resume、ResumeVersion、ResumeContentItem 的归属校验、草稿编辑、生成快照、定稿、复制和状态保护。005 已通过 login-path 幂等应用，真实数据库确认有 22 张 `BASE TABLE`。编译通过；定向 `DatabaseSchemaIntegrationTests` 3 + `ResumeIntegrationTests` 9 共 12 项，以及全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。源码扫描得到 18 个 `@RestController`；MyBatis-Plus Mapper 已显式注册。M4 已以 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56` 固化并 push 到 `main`。
 
-Milestone 5A Vue Frontend Foundation 已完成、冻结、commit 并 push 到 `main`，checkpoint 为 `6f503667c0df8b4556fe65c6a6c0a667d85fee81`。当前真实前端有 18 个 routed frontend pages；M5A 既有验证为 `npm run typecheck` PASS、`npm run build` PASS、后端 HTTP smoke 12/12 PASS，P0 = 0、P1 = 0，P2 仅有 Vite 主 chunk 约 1.07 MB warning。Application 和 AI 能力仍未实现。
+Milestone 5A Vue Frontend Foundation 已完成、冻结、commit 并 push 到 `main`，checkpoint 为 `6f503667c0df8b4556fe65c6a6c0a667d85fee81`。
+
+Milestone 5B Application Management 已完成生产实现，新增 Application、阶段历史、Assessment、Interview、Offer 与 FinalReview 六张表及真实前端，当前规模为 28 张业务表、23 个 `@RestController`、20 个 routed frontend pages。Application 只绑定当前用户的 FINALIZED ResumeVersion；生成列唯一键与 Job 行锁共同保证同一用户同一岗位最多一条 ongoing Application；状态变化与历史、Offer 终局写入保持同一事务。定向真实 MySQL 测试 12 项与全量 Maven test 90 项均通过；frontend typecheck、build 与 real HTTP smoke 12/12 通过。当前工作树保留待 Tech Lead review，尚未 commit 或 push。AI 能力仍未实现。
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
 
@@ -51,7 +53,7 @@ Milestone 5A Vue Frontend Foundation 已完成、冻结、commit 并 push 到 `m
 
 1. 安装 Java 21 和 MySQL。
 2. 创建数据库 `career_platform`，字符集使用 `utf8mb4`，排序规则使用 `utf8mb4_unicode_ci`。
-3. 按编号依次执行 [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)、[`sql/002_create_shared_profile_tables.sql`](sql/002_create_shared_profile_tables.sql)、[`sql/003_create_career_exploration_tables.sql`](sql/003_create_career_exploration_tables.sql)、[`sql/004_create_learning_tables.sql`](sql/004_create_learning_tables.sql) 和 [`sql/005_create_resume_tables.sql`](sql/005_create_resume_tables.sql)。
+3. 按编号依次执行 [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)、[`sql/002_create_shared_profile_tables.sql`](sql/002_create_shared_profile_tables.sql)、[`sql/003_create_career_exploration_tables.sql`](sql/003_create_career_exploration_tables.sql)、[`sql/004_create_learning_tables.sql`](sql/004_create_learning_tables.sql)、[`sql/005_create_resume_tables.sql`](sql/005_create_resume_tables.sql) 和 [`sql/006_create_application_tables.sql`](sql/006_create_application_tables.sql)。
 4. 通过环境变量提供数据库凭证：
    - `DB_PASSWORD`：必填。
    - `DB_USERNAME`：可选，默认值为 `root`。
