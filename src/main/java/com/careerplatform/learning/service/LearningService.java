@@ -17,6 +17,8 @@ import com.careerplatform.learning.entity.LearningPlan;
 import com.careerplatform.learning.entity.LearningTask;
 import com.careerplatform.learning.entity.StudyRecord;
 import com.careerplatform.learning.entity.WeeklyReview;
+import com.careerplatform.learning.enums.LearningPlanStatus;
+import com.careerplatform.learning.enums.LearningTaskStatus;
 import com.careerplatform.learning.mapper.LearningMaterialMapper;
 import com.careerplatform.learning.mapper.LearningNoteMapper;
 import com.careerplatform.learning.mapper.LearningPlanMapper;
@@ -28,7 +30,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class LearningService {
@@ -68,6 +73,47 @@ public class LearningService {
             throw duplicatePlan();
         }
         return requireOwnedPlan(plan.getId(), userId);
+    }
+
+    /**
+     * Atomically creates one plan and its user-confirmed tasks.
+     *
+     * <p>This method is provider-neutral: callers must finish any AI work before
+     * entering this deterministic persistence boundary.</p>
+     */
+    @Transactional
+    public CreatedPlanWithTasks createPlanWithTasks(
+            Long userId,
+            LearningPlanRequest planRequest,
+            List<LearningTaskRequest> taskRequests,
+            int availableMinutes) {
+        validatePlanBundle(planRequest, taskRequests, availableMinutes);
+        ensurePlanWeekStartAvailable(userId, planRequest.getWeekStart(), null);
+
+        LearningPlan plan = new LearningPlan();
+        plan.setUserId(userId);
+        apply(plan, planRequest);
+        try {
+            learningPlanMapper.insert(plan);
+        } catch (DuplicateKeyException exception) {
+            throw duplicatePlan();
+        }
+
+        for (LearningTaskRequest taskRequest : taskRequests) {
+            LearningTask task = new LearningTask();
+            task.setUserId(userId);
+            task.setPlanId(plan.getId());
+            apply(task, taskRequest);
+            learningTaskMapper.insert(task);
+        }
+        List<LearningTask> createdTasks = learningTaskMapper.selectList(new LambdaQueryWrapper<LearningTask>()
+                .eq(LearningTask::getPlanId, plan.getId())
+                .eq(LearningTask::getUserId, userId)
+                .orderByAsc(LearningTask::getSortOrder)
+                .orderByAsc(LearningTask::getId));
+        return new CreatedPlanWithTasks(
+                requireOwnedPlan(plan.getId(), userId),
+                List.copyOf(createdTasks));
     }
 
     public List<LearningPlan> listPlans(Long userId) {
@@ -499,6 +545,68 @@ public class LearningService {
         }
     }
 
+    private void validatePlanBundle(
+            LearningPlanRequest planRequest,
+            List<LearningTaskRequest> taskRequests,
+            int availableMinutes) {
+        if (planRequest == null || planRequest.getWeekStart() == null || planRequest.getWeekEnd() == null) {
+            throw new InvalidRequestException("计划日期不能为空");
+        }
+        validatePlanDates(planRequest.getWeekStart(), planRequest.getWeekEnd());
+        if (planRequest.getMainGoal() == null || planRequest.getMainGoal().trim().isEmpty()
+                || planRequest.getMainGoal().trim().length() > 500) {
+            throw new InvalidRequestException("计划目标无效");
+        }
+        if (planRequest.getStatus() != LearningPlanStatus.PLANNED) {
+            throw new InvalidRequestException("AI 候选计划的初始状态必须为 PLANNED");
+        }
+        if (availableMinutes <= 0 || availableMinutes > 10_080) {
+            throw new InvalidRequestException("每周可用时间必须在1到10080分钟之间");
+        }
+        if (taskRequests == null || taskRequests.isEmpty() || taskRequests.size() > 6) {
+            throw new InvalidRequestException("确认时需保留1到6个学习任务");
+        }
+
+        Set<String> titles = new HashSet<>();
+        Set<Integer> sortOrders = new HashSet<>();
+        long totalMinutes = 0;
+        for (LearningTaskRequest task : taskRequests) {
+            if (task == null || task.getTitle() == null || task.getTitle().trim().isEmpty()
+                    || task.getTitle().trim().length() > 200) {
+                throw new InvalidRequestException("学习任务标题无效");
+            }
+            if (!titles.add(task.getTitle().trim().toLowerCase(Locale.ROOT))) {
+                throw new InvalidRequestException("学习任务标题不能重复");
+            }
+            if (task.getDescription() != null && task.getDescription().length() > 2_000) {
+                throw new InvalidRequestException("AI 候选任务描述长度不能超过2000个字符");
+            }
+            if (task.getStatus() != LearningTaskStatus.TODO) {
+                throw new InvalidRequestException("AI 候选任务的初始状态必须为 TODO");
+            }
+            if (task.getPlannedMinutes() == null || task.getPlannedMinutes() <= 0) {
+                throw new InvalidRequestException("任务计划用时必须大于0");
+            }
+            if (task.getDueDate() == null) {
+                throw new InvalidRequestException("任务截止日期不能为空");
+            }
+            LearningPlan dateBoundary = new LearningPlan();
+            dateBoundary.setWeekStart(planRequest.getWeekStart());
+            dateBoundary.setWeekEnd(planRequest.getWeekEnd());
+            validateTaskDueDate(dateBoundary, task.getDueDate());
+            if (task.getSortOrder() == null || task.getSortOrder() < 0) {
+                throw new InvalidRequestException("任务排序值不能小于0");
+            }
+            if (!sortOrders.add(task.getSortOrder())) {
+                throw new InvalidRequestException("任务排序值不能重复");
+            }
+            totalMinutes += task.getPlannedMinutes();
+        }
+        if (totalMinutes > availableMinutes) {
+            throw new InvalidRequestException("任务总计划用时不能超过每周可用时间");
+        }
+    }
+
     private void validateTaskDueDate(LearningPlan plan, LocalDate dueDate) {
         if (dueDate != null && (dueDate.isBefore(plan.getWeekStart()) || dueDate.isAfter(plan.getWeekEnd()))) {
             throw new InvalidRequestException("任务截止日期必须在计划日期范围内");
@@ -584,4 +692,6 @@ public class LearningService {
     private ResourceNotFoundException notFound() {
         return new ResourceNotFoundException("资源不存在");
     }
+
+    public record CreatedPlanWithTasks(LearningPlan plan, List<LearningTask> tasks) { }
 }

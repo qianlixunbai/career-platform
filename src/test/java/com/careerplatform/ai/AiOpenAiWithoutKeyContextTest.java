@@ -23,6 +23,6 @@ class AiOpenAiWithoutKeyContextTest {
     void selectedProviderWithoutRealApiKeyStillStartsAndFailsClosedAtGateway() {
         assertThatThrownBy(() -> aiChatGateway.generateStructured("system", "user", String.class))
                 .isInstanceOf(AiServiceUnavailableException.class)
-                .hasMessage("AI 解析服务当前未启用");
+                .hasMessage("AI 服务当前未启用");
     }
 }

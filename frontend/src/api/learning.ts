@@ -5,12 +5,17 @@ import type {
   LearningNote,
   LearningNoteRequest,
   LearningPlan,
+  LearningPlanAiConfirmRequest,
+  LearningPlanAiConfirmResponse,
+  LearningPlanAiSuggestionRequest,
+  LearningPlanAiSuggestionResponse,
   LearningPlanRequest,
   LearningTask,
   LearningTaskRequest,
   StudyRecord,
   StudyRecordRequest,
   WeeklyReview,
+  WeeklyReviewAiSuggestionResponse,
   WeeklyReviewRequest,
 } from '@/types/learning'
 
@@ -36,6 +41,34 @@ export async function updateLearningPlan(planId: number, payload: LearningPlanRe
 
 export async function deleteLearningPlan(planId: number): Promise<void> {
   await client.delete(`/v1/learning-plans/${planId}`)
+}
+
+/**
+ * Generate an ephemeral weekly-plan candidate. The backend only reads owned
+ * context for this request; no plan or task is persisted until confirmation.
+ */
+export async function suggestLearningPlanWithAi(
+  payload: LearningPlanAiSuggestionRequest,
+): Promise<LearningPlanAiSuggestionResponse> {
+  const response = await client.post<LearningPlanAiSuggestionResponse>(
+    '/v1/learning-plans/ai/plan-suggestion',
+    payload,
+  )
+  return response.data
+}
+
+/**
+ * Persist a user-reviewed AI candidate atomically as one plan and its tasks.
+ * This endpoint must not invoke the provider again.
+ */
+export async function confirmLearningPlanAiSuggestion(
+  payload: LearningPlanAiConfirmRequest,
+): Promise<LearningPlanAiConfirmResponse> {
+  const response = await client.post<LearningPlanAiConfirmResponse>(
+    '/v1/learning-plans/ai/plan-suggestion/confirm',
+    payload,
+  )
+  return response.data
 }
 
 export async function listLearningTasks(planId: number): Promise<LearningTask[]> {
@@ -101,6 +134,17 @@ export async function getWeeklyReview(planId: number): Promise<WeeklyReview> {
 
 export async function updateWeeklyReview(planId: number, payload: WeeklyReviewRequest): Promise<WeeklyReview> {
   const response = await client.put<WeeklyReview>(`/v1/learning-plans/${planId}/review`, payload)
+  return response.data
+}
+
+/**
+ * Generate an ephemeral review candidate. Applying it in the UI only copies
+ * text into the existing form; the normal PUT endpoint remains the save path.
+ */
+export async function suggestWeeklyReviewWithAi(planId: number): Promise<WeeklyReviewAiSuggestionResponse> {
+  const response = await client.post<WeeklyReviewAiSuggestionResponse>(
+    `/v1/learning-plans/${planId}/ai/review-suggestion`,
+  )
   return response.data
 }
 

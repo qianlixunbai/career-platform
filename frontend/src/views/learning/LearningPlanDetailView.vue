@@ -91,9 +91,21 @@
                 <h3>周复盘</h3>
                 <span class="muted">记录本周成果、问题和下一步计划。</span>
               </div>
-              <el-tag v-if="review" type="success">已保存 · {{ review.reviewedAt }}</el-tag>
-              <el-tag v-else type="info">尚未复盘</el-tag>
+              <div class="review-heading-actions">
+                <el-button type="primary" plain :loading="aiReviewLoading" @click="openAiReviewDialog">AI 辅助周复盘</el-button>
+                <el-tag v-if="review" type="success">已保存 · {{ review.reviewedAt }}</el-tag>
+                <el-tag v-else type="info">尚未复盘</el-tag>
+              </div>
             </div>
+            <el-alert
+              v-if="review"
+              title="已有复盘存在"
+              description="AI 建议不会自动覆盖已保存内容。你可以查看建议，应用到当前表单后，再自行点击“保存复盘”。"
+              type="warning"
+              :closable="false"
+              show-icon
+              class="review-alert"
+            />
             <el-alert
               v-if="!review"
               title="首次打开时没有复盘记录是正常状态，填写后保存即可创建。"
@@ -194,6 +206,144 @@
         <el-button type="primary" :loading="savingRecord" @click="saveRecord">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="aiReviewDialogVisible"
+      title="AI 辅助周复盘"
+      width="860px"
+      top="5vh"
+      destroy-on-close
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        v-if="aiReviewError"
+        :title="aiReviewError"
+        type="error"
+        :closable="false"
+        show-icon
+        class="review-ai-alert"
+      />
+      <template v-if="aiReviewSuggestion">
+        <el-alert
+          v-if="review"
+          title="已有复盘存在，AI 不会自动覆盖"
+          description="“应用到当前表单”只会填充下方表单，不会发起保存请求。请确认内容后再点击表单底部的“保存复盘”。"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="review-ai-alert"
+        />
+        <div class="review-ai-scroll">
+          <section class="review-ai-panel">
+            <h3>Java 计算的本周指标</h3>
+            <p class="muted">这些数字来自当前计划的任务和学习记录，不由 AI 重新计算。</p>
+            <div class="review-ai-metrics">
+              <div><span>完成任务</span><strong>{{ aiReviewSuggestion.metrics.doneCount }} / {{ aiReviewSuggestion.metrics.taskCount }}</strong></div>
+              <div><span>完成率</span><strong>{{ completionRateLabel(aiReviewSuggestion.metrics.completionRate) }}</strong></div>
+              <div><span>计划时间</span><strong>{{ aiReviewSuggestion.metrics.plannedMinutes }} 分钟</strong></div>
+              <div><span>实际记录</span><strong>{{ aiReviewSuggestion.metrics.actualMinutes }} 分钟</strong></div>
+              <div><span>待开始</span><strong>{{ aiReviewSuggestion.metrics.todoCount }}</strong></div>
+              <div><span>进行中</span><strong>{{ aiReviewSuggestion.metrics.inProgressCount }}</strong></div>
+              <div><span>已跳过</span><strong>{{ aiReviewSuggestion.metrics.skippedCount }}</strong></div>
+              <div><span>学习记录数</span><strong>{{ aiReviewSuggestion.metrics.studyRecordCount }}</strong></div>
+            </div>
+            <el-table
+              v-if="aiReviewSuggestion.metrics.tasks && aiReviewSuggestion.metrics.tasks.length > 0"
+              :data="aiReviewSuggestion.metrics.tasks"
+              size="small"
+              stripe
+              class="review-ai-task-metrics"
+            >
+              <el-table-column prop="title" label="任务" min-width="200" show-overflow-tooltip />
+              <el-table-column label="状态" width="100">
+                <template #default="{ row }">{{ taskStatusLabel(row.status) }}</template>
+              </el-table-column>
+              <el-table-column label="计划 / 实际" width="130">
+                <template #default="{ row }">{{ row.plannedMinutes }} / {{ row.actualMinutes }} 分钟</template>
+              </el-table-column>
+              <el-table-column prop="studyRecordCount" label="记录数" width="80" />
+            </el-table>
+          </section>
+
+          <section class="review-ai-panel">
+            <h3>来源事实与可信依据</h3>
+            <div v-if="aiReviewSuggestion.evidence.length > 0" class="review-ai-evidence-list">
+              <div v-for="evidence in aiReviewSuggestion.evidence" :key="evidence.key" class="review-ai-evidence">
+                <div class="review-ai-evidence__heading">
+                  <strong>{{ evidence.label }}</strong>
+                  <el-tag size="small" type="info">{{ evidenceTypeLabel(evidence.type) }}</el-tag>
+                </div>
+                <p>{{ evidence.excerpt || evidence.fact || evidence.value || 'Java context fact' }}</p>
+              </div>
+            </div>
+            <el-empty v-else :image-size="56" description="本次没有可展示的额外依据" />
+          </section>
+
+          <section class="review-ai-panel">
+            <h3>AI 建议候选</h3>
+            <p class="muted">可先编辑候选内容，再应用到当前复盘表单；应用不会保存。</p>
+            <el-form v-if="aiReviewDraft" label-position="top" class="review-ai-form">
+              <el-form-item label="总结">
+                <el-input v-model="aiReviewDraft.summary" type="textarea" :rows="3" maxlength="16000" show-word-limit />
+              </el-form-item>
+              <el-form-item label="本周成果">
+                <el-input v-model="aiReviewDraft.achievements" type="textarea" :rows="4" maxlength="16000" show-word-limit />
+              </el-form-item>
+              <div v-if="aiReviewSuggestion.achievementItems.length > 0" class="review-ai-items">
+                <span class="ai-field-label">成果明细与依据</span>
+                <div v-for="item in aiReviewSuggestion.achievementItems" :key="item.text" class="review-ai-item">
+                  <p>{{ item.text }}</p>
+                  <div v-if="reviewItemEvidence(item).length > 0" class="review-ai-item__evidence">
+                    <span v-for="evidence in reviewItemEvidence(item)" :key="evidence.key">{{ evidence.label }}</span>
+                  </div>
+                </div>
+              </div>
+              <el-form-item label="遇到的问题">
+                <el-input v-model="aiReviewDraft.problems" type="textarea" :rows="4" maxlength="16000" show-word-limit />
+              </el-form-item>
+              <div v-if="aiReviewSuggestion.problemItems.length > 0" class="review-ai-items">
+                <span class="ai-field-label">问题明细与依据</span>
+                <div v-for="item in aiReviewSuggestion.problemItems" :key="item.text" class="review-ai-item">
+                  <p>{{ item.text }}</p>
+                  <div v-if="reviewItemEvidence(item).length > 0" class="review-ai-item__evidence">
+                    <span v-for="evidence in reviewItemEvidence(item)" :key="evidence.key">{{ evidence.label }}</span>
+                  </div>
+                </div>
+              </div>
+              <el-form-item label="下一步">
+                <el-input v-model="aiReviewDraft.nextSteps" type="textarea" :rows="4" maxlength="16000" show-word-limit />
+              </el-form-item>
+              <div v-if="aiReviewSuggestion.nextStepItems.length > 0" class="review-ai-items">
+                <span class="ai-field-label">下一步明细与依据</span>
+                <div v-for="item in aiReviewSuggestion.nextStepItems" :key="item.text" class="review-ai-item">
+                  <p>{{ item.text }}</p>
+                  <div v-if="reviewItemEvidence(item).length > 0" class="review-ai-item__evidence">
+                    <span v-for="evidence in reviewItemEvidence(item)" :key="evidence.key">{{ evidence.label }}</span>
+                  </div>
+                </div>
+              </div>
+            </el-form>
+            <el-alert
+              v-if="aiReviewSuggestion.warnings.length > 0"
+              title="AI 提示"
+              type="info"
+              :closable="false"
+              class="review-ai-alert"
+            >
+              <ul class="review-warning-list">
+                <li v-for="warning in aiReviewSuggestion.warnings" :key="warning">{{ warning }}</li>
+              </ul>
+            </el-alert>
+          </section>
+        </div>
+      </template>
+      <el-empty v-else-if="!aiReviewLoading && !aiReviewError" description="暂时没有复盘建议" />
+      <el-skeleton v-else-if="aiReviewLoading" :rows="8" animated />
+      <template #footer>
+        <el-button @click="aiReviewDialogVisible = false">关闭</el-button>
+        <el-button type="primary" :disabled="!aiReviewDraft" @click="applyAiReview">应用到当前表单</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -212,12 +362,16 @@ import {
   getWeeklyReview,
   listLearningTasks,
   listStudyRecords,
+  suggestWeeklyReviewWithAi,
   updateLearningTask,
   updateStudyRecord,
   updateWeeklyReview,
 } from '@/api/learning'
 import type {
   LearningPlan,
+  LearningAiEvidence,
+  WeeklyReviewAiItem,
+  WeeklyReviewAiSuggestionResponse,
   LearningPlanStatus,
   LearningTask,
   LearningTaskRequest,
@@ -253,6 +407,16 @@ const recordDialogVisible = ref(false)
 const editingRecordId = ref<number | null>(null)
 const recordFormRef = ref<FormInstance>()
 const reviewFormRef = ref<FormInstance>()
+const aiReviewDialogVisible = ref(false)
+const aiReviewLoading = ref(false)
+const aiReviewError = ref('')
+const aiReviewSuggestion = ref<WeeklyReviewAiSuggestionResponse | null>(null)
+const aiReviewDraft = ref<{
+  summary: string
+  achievements: string
+  problems: string
+  nextSteps: string
+} | null>(null)
 
 const taskStatusOptions: Array<{ value: LearningTaskStatus; label: string }> = [
   { value: 'TODO', label: '待开始' },
@@ -319,6 +483,34 @@ function taskStatusTag(status: LearningTaskStatus): 'info' | 'warning' | 'succes
   return 'info'
 }
 
+function evidenceTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    CAREER_GOAL: '职业目标',
+    USER_SKILL: '用户技能',
+    JOB_REQUIREMENT: '岗位要求',
+    LEARNING_PLAN: '历史计划',
+    LEARNING_TASK: '学习任务',
+    STUDY_RECORD: '学习记录',
+    WEEKLY_REVIEW: '周复盘',
+    LEARNING_NOTE: '学习笔记',
+    USER_FOCUS: '本周关注',
+  }
+  return labels[type] ?? type
+}
+
+function completionRateLabel(value: number): string {
+  if (!Number.isFinite(value)) return '—'
+  const percentage = value <= 1 ? value * 100 : value
+  return `${percentage.toFixed(1)}%`
+}
+
+function reviewItemEvidence(item: WeeklyReviewAiItem): LearningAiEvidence[] {
+  const evidence = aiReviewSuggestion.value?.evidence ?? []
+  return (item.evidenceKeys ?? [])
+    .map((key) => evidence.find((entry) => entry.key === key))
+    .filter((entry): entry is LearningAiEvidence => Boolean(entry))
+}
+
 function isNotFound(error: unknown): boolean {
   return axios.isAxiosError(error) && error.response?.status === 404
 }
@@ -377,6 +569,55 @@ async function loadRecords(taskId = selectedTaskId.value): Promise<void> {
   } finally {
     recordsLoading.value = false
   }
+}
+
+async function openAiReviewDialog(): Promise<void> {
+  const id = planId.value
+  if (!Number.isInteger(id) || id <= 0 || aiReviewLoading.value) return
+  aiReviewDialogVisible.value = true
+  aiReviewLoading.value = true
+  aiReviewError.value = ''
+  aiReviewSuggestion.value = null
+  aiReviewDraft.value = null
+  try {
+    const response = await suggestWeeklyReviewWithAi(id)
+    const suggestion: WeeklyReviewAiSuggestionResponse = {
+      ...response,
+      metrics: response.metrics,
+      summary: response.summary ?? '',
+      achievements: response.achievements ?? '',
+      problems: response.problems ?? '',
+      nextSteps: response.nextSteps ?? '',
+      achievementItems: response.achievementItems ?? [],
+      problemItems: response.problemItems ?? [],
+      nextStepItems: response.nextStepItems ?? [],
+      evidence: response.evidence ?? [],
+      warnings: response.warnings ?? [],
+    }
+    aiReviewSuggestion.value = suggestion
+    aiReviewDraft.value = {
+      summary: suggestion.summary,
+      achievements: suggestion.achievements,
+      problems: suggestion.problems,
+      nextSteps: suggestion.nextSteps,
+    }
+  } catch {
+    aiReviewError.value = 'AI 周复盘暂时不可用；当前手工复盘表单仍可正常编辑和保存。'
+  } finally {
+    aiReviewLoading.value = false
+  }
+}
+
+function applyAiReview(): void {
+  if (!aiReviewDraft.value) return
+  Object.assign(reviewForm, {
+    summary: aiReviewDraft.value.summary,
+    achievements: aiReviewDraft.value.achievements,
+    problems: aiReviewDraft.value.problems,
+    nextSteps: aiReviewDraft.value.nextSteps,
+  })
+  aiReviewDialogVisible.value = false
+  ElMessage.success('AI 建议已应用到当前表单，请点击“保存复盘”完成保存')
 }
 
 function goBack(): void {
@@ -570,19 +811,48 @@ onMounted(load)
 .section-heading--wrap { flex-wrap: wrap; }
 .section-heading h3 { margin: 0 0 5px; font-size: 16px; color: var(--el-text-color-primary); }
 .muted { color: var(--el-text-color-secondary); font-size: 13px; }
+.review-heading-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .table-wrap { min-height: 180px; }
 .record-toolbar { display: flex; align-items: center; gap: 12px; }
 .task-select { width: 260px; }
 .review-alert { margin-bottom: 18px; }
 .review-form { padding-top: 4px; }
+.review-ai-alert { margin-bottom: 16px; }
+.review-ai-scroll { max-height: 70vh; overflow-y: auto; padding: 2px 4px 4px 2px; }
+.review-ai-panel { margin-bottom: 16px; padding: 16px; border: 1px solid var(--el-border-color-light); border-radius: 8px; background: var(--el-bg-color); }
+.review-ai-panel:last-child { margin-bottom: 0; }
+.review-ai-panel h3 { margin: 0 0 6px; font-size: 16px; color: var(--el-text-color-primary); }
+.review-ai-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.review-ai-metrics div { display: flex; flex-direction: column; gap: 5px; }
+.review-ai-metrics span, .ai-field-label { color: var(--el-text-color-secondary); font-size: 12px; }
+.review-ai-metrics strong { color: var(--el-text-color-primary); font-weight: 600; }
+.review-ai-task-metrics { margin-top: 16px; }
+.review-ai-evidence-list { display: grid; gap: 10px; margin-top: 14px; }
+.review-ai-evidence { padding: 11px 12px; border-radius: 6px; background: var(--el-fill-color-light); }
+.review-ai-evidence__heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.review-ai-evidence__heading strong { color: var(--el-text-color-primary); font-weight: 500; }
+.review-ai-evidence p { margin: 7px 0 0; color: var(--el-text-color-regular); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-ai-form { margin-top: 14px; }
+.review-ai-items { margin: -2px 0 16px; padding: 11px 12px; border-radius: 6px; background: var(--el-color-primary-light-9); }
+.review-ai-item { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--el-border-color-lighter); }
+.review-ai-item:first-of-type { border-top: 0; }
+.review-ai-item p { margin: 0; color: var(--el-text-color-primary); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-ai-item__evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.review-ai-item__evidence span { padding: 2px 7px; border-radius: 4px; color: var(--el-text-color-secondary); background: var(--el-fill-color-light); font-size: 12px; }
+.review-warning-list { margin: 0; padding-left: 20px; line-height: 1.7; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
 .full-width { width: 100%; }
 .form-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
 .form-tip { margin: -4px 0 0; color: var(--el-text-color-secondary); font-size: 12px; }
 @media (max-width: 680px) {
   .page-heading, .section-heading { align-items: flex-start; flex-direction: column; }
+  .review-heading-actions { width: 100%; justify-content: flex-start; }
   .form-grid { grid-template-columns: 1fr; }
+  .review-ai-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .record-toolbar { width: 100%; flex-wrap: wrap; }
   .task-select { width: 100%; }
+}
+@media (max-width: 440px) {
+  .review-ai-metrics { grid-template-columns: 1fr; }
 }
 </style>

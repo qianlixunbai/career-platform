@@ -46,8 +46,8 @@ public class SpringAiChatGateway implements AiChatGateway {
     @Override
     public <T> T generateStructured(String systemInstruction, String userContent, Class<T> responseType) {
         if (!properties.isConfigured()) {
-            log.info("AI request rejected because JD parsing is disabled or provider configuration is incomplete");
-            throw new AiServiceUnavailableException("AI 解析服务当前未启用");
+            log.info("AI request rejected because chat AI is disabled or provider configuration is incomplete");
+            throw new AiServiceUnavailableException("AI 服务当前未启用");
         }
         Objects.requireNonNull(systemInstruction, "systemInstruction must not be null");
         Objects.requireNonNull(userContent, "userContent must not be null");
@@ -97,6 +97,6 @@ public class SpringAiChatGateway implements AiChatGateway {
         }
 
         throw new AiServiceUnavailableException(
-                "AI 解析服务当前未启用");
+                "AI 服务当前未启用");
     }
 }

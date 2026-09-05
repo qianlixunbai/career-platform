@@ -11,6 +11,8 @@
 
 Milestone 6A 不新增 migration 或业务表。JD AI parse candidate 只存在于响应和前端审核状态；用户确认后仍写入既有 `job_requirement`，且不会自动删除/覆盖人工条目。因此业务表数量保持 28。通过 IDEA 运行配置启动的 localhost application 已完成真实 MySQL business smoke，确认 parse 不写要求、confirm 才追加要求；最终真实 MySQL full Maven 为 132 项、Failures 0、Errors 0、Skipped 0。
 
+Milestone 6B 同样不新增 migration、业务表或 AI table。Plan/Review suggestion 都是 ephemeral；用户确认 Plan 后只在一个事务中写入既有 `learning_plan` 与 `learning_task`，正式 Review 继续写既有 `weekly_review`。源码 schema 仍为 28 张业务表。用户已通过 IDEA Full Maven Test 取得真实 MySQL 155 项全绿，事务集成类 3/3 PASS，包含部分写入后完整回滚验证；Plan/Review 六表整行快照断言通过。Astra 对用户 IDEA backend 实际执行两条真实 Flash smoke，owner 资源 HTTP 快照 delta 均为 0，已有 Review 未被覆盖；HTTP 与直接 SQL 证据分别记录于 Closing 报告。
+
 ## SQL 文件与实际应用状态
 
 | 文件 | 内容 | 状态 |

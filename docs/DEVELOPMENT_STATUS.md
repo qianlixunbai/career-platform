@@ -1,6 +1,6 @@
 # 开发状态
 
-> 更新日期：2026-09-04。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
+> 更新日期：2026-09-05。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
 
 ## Milestone 2 结论
 
@@ -126,10 +126,38 @@ M6A 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218
 
 因此 M6A 当前结论为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `07712a687685e368e35e5c04bb0f294ae218c265`。P0 = 0，P1 = 0；P2 保留 Vite 主 chunk warning 与 Mockito dynamic agent future-JDK warning。AI implementation count 已从 0 增至 1；课程最低 3 个，仍至少缺 2 个。
 
+## Milestone 6B — AI Learning Planning + Weekly Review
+
+M6B 已完成实现与 Closing Verification，当前为 **`GO / READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED`**；尚未建立 checkpoint：
+
+- Plan suggestion 读取用户明确时间预算、可选 CareerGoal、最多 5 个 owner-owned Job 的结构化 JobRequirement、最多 30 个 UserSkill 与有限 Learning 历史；不发送 raw JD、Resume、联系方式、secret 或 `userId`。
+- Java evidence map 是唯一可信来源；模型只能返回 `evidenceKeys`。unknown key 被丢弃，Plan task 若没有至少一条有效 evidence 则返回 `AI_INVALID_RESPONSE`。Facts/evidence 与 AI rationale/task advice 在 contract 和 UI 中分开。
+- Plan candidate 为 ephemeral，Java 校验 2～6 个任务、标题/排序唯一、分钟为正、dueDate 在周期内、总分钟不超过用户预算。用户可编辑、删除和排序；确认后由单一事务创建一个 Plan 与全部 Tasks，confirm 不调用 AI。
+- Weekly Review suggestion 先校验 Plan owner，再由 Java 计算 task status、completion rate、planned/actual minutes、record count 与逐任务 metrics。候选不会自动保存或覆盖已有 Review；用户只能先应用到表单，再走既有 `PUT /learning-plans/{planId}/review` 保存。
+- Prompt 将 Goal、Requirement、Note、Record、Review 与 focus 全部视为 untrusted data，明确禁止 role/schema override、prompt/secret disclosure、network/tool instructions；生产 Gateway 继续 `toolChoice=none`、无业务 tools。
+- `AI_CHAT_ENABLED` 成为维护中的 global Chat AI switch，旧 `AI_JD_PARSE_ENABLED` 仅作兼容 fallback；`AI_CHAT_PROVIDER` 与 `AI_API_KEY` 不变，生产模型继续硬锁 `deepseek-v4-flash`，不存在 `AI_MODEL` 或 Pro fallback。
+- Astra/Codex 在本任务测试修复阶段实际运行离线定向 **38 项、Failures 0、Errors 0、Skipped 0、BUILD SUCCESS**：M6B/foundation 21、M6A prompt/service 15、Learning AI 未认证 1、MyBatis 故障注入装配检查 1。最终 live 阶段未重复运行这些测试。
+- 用户通过 IDEA `Full Maven Test` 配置实际取得 **155 项、Failures 0、Errors 0、Skipped 0、BUILD SUCCESS**；`LearningServiceAiConfirmTransactionIntegrationTests` **3/3 PASS**。六项 Learning AI 集成测试和六表无写入快照断言均包含在全绿 Full Maven 中。该证据来自用户 IDEA，不是 Astra 终端运行。
+- Astra/Codex 在本任务初始审计阶段实际运行 frontend typecheck/build 均 PASS；此后前端未修改，最终阶段未机械重复构建。保留既有主 chunk warning。M6B 不新增 routed page，仍为 20。
+- Astra 在 2026-09-05 对用户 IDEA 启动的 `localhost:8080` 执行真实 DeepSeek Plan/Review smoke，各一次且均 PASS，脚本重试 0、AI confirm 0。Plan 返回 3 tasks、270/300 分钟、buffer 30、13 条可信 evidence；Review 指标为 4 tasks、四种状态各 1、完成率 25%、计划 300/实际 90 分钟、3 条学习记录、9 条可信 evidence。
+- 两次 live owner 业务资源快照 delta 均 0，已有 WeeklyReview 保持不变；直接 SQL 六表快照证据来自用户 IDEA 集成测试。测试 Plan/Job/Company/Goal 及子资源已删除；应用无账号删除 API，保留独立空测试账号 `userId=1890` 供后续精准清理。真实用户数据未修改，凭据未打印或落盘。
+- 不新增业务表、AI 表或 migration，业务表 28、源码 `@RestController` 24、正式 AI 功能 2。生产模型固定 `deepseek-v4-flash`，Pro calls 0，无模型 fallback、动态选模或业务 tools。
+
+M6B 将正式 AI 功能数从 1 增至 2；课程最低 3 个，仍至少缺 1 个。本里程碑两项 P1 验证门禁均已关闭，Astra 最终结论为 **GO — READY FOR M6B CHECKPOINT / NOT COMMITTED / NOT PUSHED**；本轮不开始 M6C。
+
+### 2026-09-05 独立 Closing 复核
+
+- Astra 复核了三个按 Luna Max 参数创建的独立审计 Worker 的后端、测试配置、前端文档结论，未确认生产 P0/P1；未修改 production code。四项 P2 边界问题和既有构建警告记录于[Closing 验证报告](M6B_CLOSING_VERIFICATION.md)。
+- 原 confirm 测试只能证明预校验。新测试最初使用 Mapper spy 的 `callRealMethod()`，在用户 IDEA 154 项全量运行中出现唯一 failure；原因是 MyBatis abstract Mapper 没有可调用的方法体，属于测试注入错误。Astra 改为 test-only MyBatis `Executor.update` 拦截器：首条真实 INSERT 后查证 Plan/Task 已存在，第二条在同 Spring 事务连接的 INSERT 入口抛指定异常，事务外验证两行零残留。修正后用户 IDEA 事务类 3/3、Full Maven 155 项均 PASS；production code 保持不动。
+- Plan/Review suggestion 集成测试补充六张 Learning 表调用前后的整行快照对比和逐任务 actualMinutes 断言，已由用户 IDEA 真实 MySQL Full Maven 验证通过。
+- 全局开关补充加载生产 properties 的实际绑定测试，覆盖默认关闭、legacy true/false、新开关覆盖 legacy 两种冲突组合；离线装配检查确认真实 Mapper、拦截器注册和 INSERT statement。相关证据包含在上述 38 项定向结果及用户 155 项 Full Maven 中。
+- Astra/Codex 实际运行 frontend typecheck/build 均 PASS。精确 annotation 扫描得到 **24** 个 `@RestController`，此前 25 的口径混入 `@RestControllerAdvice`；源码/SQL 仍为 28 张业务表、20 个 routed pages，无 M6B migration。
+- 历史 Codex Full Maven 151 项中的 97 errors 是本地凭据不可见导致的认证错误，未作为代码缺陷；用户 IDEA 后续 155 项全绿已关闭 MySQL 门禁。live smoke 使用用户持有凭据的 backend，Astra 未读取秘密。最终 secret audit、机械统计、`git diff --check` 均 PASS。
+
 ## 当前未实现
 
 - Spring Security 完整框架、RBAC、OAuth、Refresh Token、Token 黑名单和复杂 Logout。
-- AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling、AI Evaluation 尚未实现。正式 AI 功能当前为 1 个（JD Structured Parse）。
+- AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling、AI Evaluation 尚未实现。正式 AI 功能当前为 2 个（JD Structured Parse；AI Learning Planning + Weekly Review）。
 - Redis、MQ、Elasticsearch、管理员后台和 HR 端。
 
 ## 已知技术债
@@ -141,4 +169,4 @@ M6A 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218
 
 ## 下一步建议
 
-M6A 已完成并冻结；后续至少再实现 2 个正式 AI 功能，才满足课程最低 AI 数量要求。
+等待用户另行明确授权建立 M6B checkpoint；当前已 GO，但尚未 commit/push。课程仍至少缺 1 个正式 AI 功能，本轮不开始后续里程碑。

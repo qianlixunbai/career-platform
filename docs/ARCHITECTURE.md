@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-04 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`；commit 为 `feat: add AI JD structured parsing`。该里程碑已通过真实 MySQL full Maven、localhost HTTP business smoke 与 authenticated DeepSeek Flash smoke，状态为 `FROZEN / COMMITTED / PUSHED`。
+本文记录截至 2026-09-05 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已通过 Closing Verification，状态为 `GO / READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED`。用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。尚未建立 M6B checkpoint。
 
 ## 技术基线
 
@@ -43,18 +43,18 @@ com.careerplatform
 ├─ learning   周计划、任务、学习记录、周复盘、笔记与资料元数据
 ├─ resume     简历、版本、内容快照
 ├─ application 投递、阶段历史、测评、面试、Offer、最终复盘
-└─ ai          可选 Chat foundation、JD parse/confirm 边界
+└─ ai          可选 Chat foundation、JD parse 与 Learning AI 候选边界
 ```
 
 当前 backend package 实际包含 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning`、`resume`、`application` 和 `ai`。
 
-当前源码扫描实际包含 24 个 `@RestController`，其中新增的 `JdAiController` 只承载 JD parse/confirm 两个端点。Controller 不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
+当前源码扫描实际包含 24 个 `@RestController`；M6A 的 `JdAiController` 承载 JD parse/confirm，M6B 的 `LearningAiController` 承载 Plan/Review suggestion 与 Plan confirm。Controller 不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
 
-## AI Foundation 与 JD Structured Parse 边界
+## AI Foundation 与结构化候选边界
 
-`com.careerplatform.ai` 提供最小 AI 基础设施：配置、provider-neutral `AiChatGateway`、Spring AI `ChatClient` 实现、typed DTO、统一异常以及 JD 专用 service/controller。生产依赖使用 Spring AI BOM `1.1.8` 与 `spring-ai-starter-model-openai`；Spring Boot 保持 `3.5.14`。DeepSeek Official API 通过 OpenAI-compatible adapter 接入；endpoint 固定为 `https://api.deepseek.com`，生产模型硬锁为 `deepseek-v4-flash`。只有启用开关、adapter 选择和 API key 来自 `AI_JD_PARSE_ENABLED`、`AI_CHAT_PROVIDER`、`AI_API_KEY`；客户端、`AI_MODEL`、runtime options 和自动 fallback 都不能改变模型。Gateway 在每次 Prompt 上再次施加内部 Flash 常量并禁用 tool choice/internal tool execution，防止 Spring 标准属性优先级改变实际调用模型。
+`com.careerplatform.ai` 提供最小 AI 基础设施：配置、provider-neutral `AiChatGateway`、Spring AI `ChatClient` 实现、typed DTO、统一异常以及 JD/Learning 专用 service/controller。生产依赖使用 Spring AI BOM `1.1.8` 与 `spring-ai-starter-model-openai`；Spring Boot 保持 `3.5.14`。DeepSeek Official API 通过 OpenAI-compatible adapter 接入；endpoint 固定为 `https://api.deepseek.com`，生产模型硬锁为 `deepseek-v4-flash`。维护中的全局开关、adapter 与 key 分别来自 `AI_CHAT_ENABLED`、`AI_CHAT_PROVIDER`、`AI_API_KEY`；旧 `AI_JD_PARSE_ENABLED` 只在新开关缺失时作为兼容 fallback。客户端、`AI_MODEL`、runtime options 和自动 fallback 都不能改变模型。Gateway 在每次 Prompt 上再次施加内部 Flash 常量并禁用 tool choice/internal tool execution。
 
-所有 AI 模型默认 `none`，非 Chat 模型固定禁用；`AI_JD_PARSE_ENABLED` 默认 `false`。无 provider 或 API key 时 gateway 返回 `AI_SERVICE_UNAVAILABLE`，不会阻止 Spring Context 或传统业务启动。Provider failure 映射为 503 `AI_PROVIDER_UNAVAILABLE`，structured output/conversion failure 映射为 502 `AI_INVALID_RESPONSE`，响应不透出 provider 原始认证错误、secret 或 stack trace。
+所有 AI 模型默认 `none`，非 Chat 模型固定禁用；`AI_CHAT_ENABLED` 默认 `false`。无 provider 或 API key 时 gateway 返回 `AI_SERVICE_UNAVAILABLE`，不会阻止 Spring Context 或传统业务启动。Provider failure 映射为 503 `AI_PROVIDER_UNAVAILABLE`，structured output/conversion failure 映射为 502 `AI_INVALID_RESPONSE`，响应不透出 provider 原始认证错误、secret 或 stack trace。
 
 JD parse 使用 `POST /api/v1/jobs/{jobId}/ai/jd-parse`。后端按 `currentUserId` 读取 owner-owned Job，只把当前 `rawJd` 发送给模型。模型 schema 只能产生 `type`、`description`、`skillName`、`evidenceQuote` 和 warnings，不能产生任何可信数据库 ID。Java 随后执行输出数量/长度/enum/nullability 校验、空白和大小写归一化 evidence 子串校验、AI 内部去重、global Skill 名称匹配、现有 requirement 重复检测，并生成 `SHA-256(rawJd)` fingerprint。unsupported evidence 直接丢弃并产生 warning；不存在的 Skill 标记 `UNRESOLVED`，绝不自动创建。
 
@@ -91,9 +91,9 @@ parse 返回 ephemeral candidate，绝不修改 `job_requirement`。只有用户
 
 创建或更新 Job 前，Service 验证 `company.id = companyId AND company.user_id = currentUserId`。访问 JobRequirement 或 JobNote 前，Service 先验证父 Job 属于当前用户，再以 `child.id + job.id` 操作子资源。数据库还用 `(company_id, user_id) → company(id, user_id)` 复合外键形成最终一致性防线。
 
-## Learning 边界
+## Learning 与 AI Learning 边界
 
-Learning 只实现传统学习业务，不包含 AI、RAG、文件上传、向量化或前端。六个资源的关系固定为：
+Learning 的传统业务与 AI 候选功能共享既有六个资源；M6B 不增加 AI 表、RAG、文件上传、向量化或新页面。资源关系固定为：
 
 - `LearningPlan 1 -> n LearningTask`；`LearningTask 1 -> n StudyRecord`。
 - `LearningPlan 1 -> 0..1 WeeklyReview`，通过 `PUT /api/v1/learning-plans/{planId}/review` 创建或更新同一条复盘。
@@ -102,6 +102,10 @@ Learning 只实现传统学习业务，不包含 AI、RAG、文件上传、向�
 所有 Learning 私有表都保存 `user_id`。每个 Learning API 从 `@CurrentUserId Long` 获取 owner；Service 的详情、更新、删除查询同时带资源 ID 与 owner，子资源还验证路径父级。Note/Material 的 `taskId` 使用同一 Plan、同一 owner 的任务校验，跨用户或错误父子组合统一返回 `404 RESOURCE_NOT_FOUND`。
 
 Learning 的 Plan 周起止日期要求 `weekEnd >= weekStart`，同一用户同一 `weekStart` 唯一；Task 截止日期必须位于 Plan 闭区间，计划用时为正、排序值不小于零；StudyRecord 时长为正且不会隐式改变 Task 状态。删除 Task 时事务内先解绑 Note/Material 的可选 `taskId`，再删除 Records 和 Task；删除 Plan 时按 Material、Note、Review、Record、Task、Plan 顺序清理全部后代。
+
+M6B 提供 `POST /api/v1/learning-plans/ai/plan-suggestion`、`POST /api/v1/learning-plans/ai/plan-suggestion/confirm` 和 `POST /api/v1/learning-plans/{planId}/ai/review-suggestion`。Suggestion 只读；confirm 不调用 AI，固定创建 `PLANNED` Plan 与 `TODO` Tasks，并在 `LearningService.createPlanWithTasks` 的一个事务中先全量验证再写入。Review candidate 只能由用户应用到现有表单，正式保存继续复用 `PUT /api/v1/learning-plans/{planId}/review`。
+
+`LearningAiContextBuilder` 只读取 current user 的数据，优先使用用户明确时间约束、focus、CareerGoal 与选中的结构化 JobRequirement；不发送 raw JD、Resume、联系方式、secret 或 `userId`。预算固定为技能 30、岗位 5、每岗要求 10/总计 30、最近 Plan 2、Task 20、StudyRecord 30、Note 12、Review 2、单段文本 300、上下文文本 12000；截断必须返回 warning。Java 构造 evidence map，模型只能返回 `evidenceKeys`，Java 再反查可信 label/excerpt；unknown key 不成为证据，每个 Plan task 必须至少有一条有效 evidence。Review 的状态计数、完成率、计划/实际分钟与逐任务时长全部由 Java 计算。UI 将来源事实与 AI 建议分区展示。
 
 ## Resume 边界
 
@@ -132,4 +136,4 @@ Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删�
 
 ## 后续规划边界
 
-JD Structured Parse 已作为第 1 个正式 AI 功能实现。AI 学习规划与周复盘、AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling 和 AI Evaluation 仍未实现。后续 AI 输出继续遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
+JD Structured Parse 是第 1 个正式 AI 功能，AI Learning Planning + Weekly Review 是第 2 个。AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling 和 AI Evaluation 仍未实现。后续 AI 输出继续遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。

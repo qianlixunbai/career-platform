@@ -161,11 +161,11 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 
 规划增加：
 
-1. AI 学习规划与周复盘
+1. AI 学习规划与周复盘（M6B 已通过 Closing，GO / READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED）
 2. AI 面试 / 求职复盘
 3. 简历 + JD 匹配分析
 
-与 P0 的 JD 解析合计至少四个规划 AI 功能；当前只实现了 JD Structured Parse，其余仍未实现。
+与 P0 的 JD 解析合计至少四个规划 AI 功能；当前已实现 JD Structured Parse 与 AI Learning Planning + Weekly Review，正式 AI 功能数为 2，仍至少缺 1 个才能达到课程最低要求。
 
 ### P2：技术深化版
 
@@ -196,7 +196,7 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 
 课程最终要求至少 18 个 Controller。初始设计基线按业务职责规划的 Controller 数量超过 18 个，覆盖身份与基础档案、职业探索、学习、简历、求职流程和 AI 能力。
 
-Controller 不机械地与表一一对应，最终会按用例和 API 职责合理合并或拆分。当前仓库中实际有 **24** 个 `@RestController`，其中 M6A 只新增一个 `JdAiController`；课程最低数量指标已达到。
+Controller 不机械地与表一一对应，最终会按用例和 API 职责合理合并或拆分。当前仓库中实际有 **24** 个 `@RestController`，M6A 新增 `JdAiController`，M6B 新增 `LearningAiController`；课程最低数量指标已达到。
 
 ## 预计前端页面
 
@@ -245,6 +245,6 @@ Controller 不机械地与表一一对应，最终会按用例和 API 职责合�
 | 数据表 | 18 | 28 | 28 张核心业务表，P2 可能增加技术表 |
 | Controller | 18 | 24 | 超过 18 个，按业务职责划分 |
 | 前端页面 | 15 | 20 | 20 个主要业务页面 |
-| AI 功能 | 3 | 1 | 已实现 JD Structured Parse，仍至少缺 2 个 |
+| AI 功能 | 3 | 2 | 已实现 JD Structured Parse 与 AI Learning Planning + Weekly Review，仍至少缺 1 个 |
 
-数据表、Controller 和前端页面的传统数量指标当前已分别达到 28、24、20，均满足课程最低数量要求；正式落地 AI 功能为 1 个，课程最终至少 3 个 AI 功能的要求尚未达到。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。
+数据表、Controller 和前端页面的传统数量指标当前已分别达到 28、24、20，均满足课程最低数量要求；正式落地 AI 功能为 2 个，课程最终至少 3 个 AI 功能的要求尚未达到。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。
