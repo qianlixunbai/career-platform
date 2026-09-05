@@ -2,7 +2,7 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-05 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已通过 Closing Verification，状态为 `GO / READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED`。用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。尚未建立 M6B checkpoint。
+本文记录截至 2026-09-05 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`，功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，已 push 到 `origin/main`。Closing 历史证据：用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。本次 checkpoint 未重跑 Maven、前端构建或真实 Provider smoke，未修改生产代码。
 
 ## 技术基线
 

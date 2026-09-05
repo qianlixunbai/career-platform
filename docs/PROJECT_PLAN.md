@@ -161,7 +161,7 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 
 规划增加：
 
-1. AI 学习规划与周复盘（M6B 已通过 Closing，GO / READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED）
+1. AI 学习规划与周复盘（M6B 已冻结，`FROZEN / COMMITTED / PUSHED`；功能 checkpoint `805a3801af76e4e88434e52e154d2069ad3c4d1b` 已 push 到 `origin/main`）
 2. AI 面试 / 求职复盘
 3. 简历 + JD 匹配分析
 

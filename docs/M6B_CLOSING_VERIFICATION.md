@@ -4,14 +4,18 @@
 
 ## 1. 当前结论
 
-**GO — READY FOR M6B CHECKPOINT / NOT COMMITTED / NOT PUSHED。**
+**M6B：FROZEN / COMMITTED / PUSHED。**
+
+功能 checkpoint：`805a3801af76e4e88434e52e154d2069ad3c4d1b`；commit：`feat: add AI learning planning and weekly review`。该功能提交已成功 push 到 `origin/main`。
+
+证据时间边界：下文第 2～6 节保留 checkpoint 前 Closing 阶段的审计、修复及测试历史，其中“本轮/本任务”均指该 Closing 阶段。本次 checkpoint 未重新执行 Maven、前端构建或真实 DeepSeek smoke，也未修改生产代码；本次 Git 核验见第 8 节。
 
 M6B 独立审计、必要测试修正、真实 MySQL Full Maven 与两条真实 DeepSeek Flash smoke 均已完成。用户通过 IDEA 提供全量 **155 / 0 failures / 0 errors / 0 skipped / BUILD SUCCESS**，事务集成类 **3/3 PASS**；Astra 随后对用户启动的 localhost backend 实际执行 Plan/Review smoke，各一次且均 PASS。最终机械检查通过，两个 P1 验证门禁均已关闭。
 
 - 已确认的生产缺陷：P0 = 0、P1 = 0。
 - 未关闭的 P1 验证门禁 = 0。
 - P2 = 4 项边界问题，另保留 Vite 主 chunk、Mockito future-JDK 两项既有警告；按本轮范围未修改这些生产行为。
-- 本轮未 commit、未 push、未启动 M6C。Ready for Checkpoint 不代表已经建立或冻结 M6B checkpoint。
+- Closing 结束时尚未提交；随后已按用户授权建立并 push 功能 checkpoint。M6C 尚未开始。
 
 ## 2. 实际 Agent 编排与独立审计
 
@@ -40,7 +44,7 @@ Astra 自行阅读相关生产代码及真实 diff，复核 Worker 发现，运�
 | `src/test/java/com/careerplatform/learning/LearningServiceAiConfirmTransactionIntegrationTests.java` | 无外层事务的 commit/duplicate/rollback、真实 MyBatis 故障注入、离线装配检查及专属用户清理 |
 | `src/test/java/com/careerplatform/ai/DeepSeekFlashConfigurationTest.java` | 加载生产 properties，实际绑定默认值、legacy fallback、新开关优先级 |
 | `src/test/java/com/careerplatform/ai/LearningAiControllerIntegrationTests.java` | 两类 suggestion 前后六张 Learning 表整行快照对比；逐任务 actualMinutes 断言 |
-| `README.md`、`docs/ARCHITECTURE.md`、`docs/PROJECT_PLAN.md` | 当前 Controller 数 24，M6B 更新为 GO / READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED |
+| `README.md`、`docs/ARCHITECTURE.md`、`docs/PROJECT_PLAN.md` | Closing 阶段记录 Controller 数 24 与 GO 结论；当前冻结状态已按功能 checkpoint 同步 |
 | `docs/DEVELOPMENT_STATUS.md`、`docs/DATABASE.md` | 更新用户 IDEA MySQL 证据、Astra live smoke、已关闭门禁及证据来源 |
 | `docs/M6B_CLOSING_VERIFICATION.md` | 本报告 |
 
@@ -117,7 +121,7 @@ Worker 提出的“每任务 rationale 缺省显示通用建议文案”未被�
 - 已通过现有删除接口清理 Plan 716（及 Tasks/Records/Review）、Job 345（及 Requirement）、Company 400、Goal 60，均返回成功；没有操作真实用户数据。
 - 应用没有删除账号的 API，保留独立空测试账号 `userId=1890`、`username=m6b_smoke_657a2f5ad567478c9215`，供后续精准清理。随机登录凭据和 token 仅存内存，未写文件或打印；不将“业务 fixture 已清理”表述为账号也已删除。
 
-## 7. 机械统计、Git 与文档状态
+## 7. Closing 结束时的机械统计与 Git 历史快照
 
 - 业务表：SQL `CREATE TABLE` 与实体 `@TableName` 均为 **28**；真实 MySQL metadata 以 Full Maven 为准。
 - `@RestController`：精确 annotation 扫描 **24**，排除 `@RestControllerAdvice`。
@@ -125,10 +129,20 @@ Worker 提出的“每任务 rationale 缺省显示通用建议文案”未被�
 - 正式 AI 功能：**2**（JD Structured Parse；AI Learning Planning + Weekly Review）；课程最低 3，仍缺至少 1。
 - M6B migration：**0**；新增 AI table：**0**。
 - Branch：`main`。
-- HEAD：`058a46ebcf323b0f8cccbd3d7e749991d8a5336f`。
-- 本地 `origin/main`：`058a46ebcf323b0f8cccbd3d7e749991d8a5336f`；本轮未 fetch 或 push。
-- Working tree：预期 dirty，共 44 个变更文件（原 42 个，加两个 Closing 新文件）。live 执行前后原 44 个文件哈希完全一致，随后仅更新六份维护文档。未 reset/stash/clean/checkout。
+- Closing 结束时 HEAD（历史）：`058a46ebcf323b0f8cccbd3d7e749991d8a5336f`。
+- Closing 结束时本地 `origin/main`（历史）：`058a46ebcf323b0f8cccbd3d7e749991d8a5336f`；当时尚未 push M6B。
+- Closing 结束时 Working tree（历史）：预期 dirty，共 44 个变更文件（原 42 个，加两个 Closing 新文件）。live 执行前后原 44 个文件哈希完全一致，随后仅更新六份维护文档。未 reset/stash/clean/checkout。
 - M6A：`FROZEN / COMMITTED / PUSHED`，功能 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265`。
-- M6B maintained docs：`GO / READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED`；未标记为 FROZEN/COMMITTED/PUSHED。
+- Closing 当时的 M6B 文档只记录待 checkpoint 的 GO 结论；当前 maintained docs 已同步为 `FROZEN / COMMITTED / PUSHED`。
 
-**Astra 最终结论：GO — READY FOR M6B CHECKPOINT / NOT COMMITTED / NOT PUSHED。等待用户另行明确授权建立 checkpoint；不开始 M6C。**
+## 8. M6B Checkpoint 记录（2026-09-05）
+
+- 主控 Astra 独立复核 Git 基线与差异；文档状态检查使用按 `gpt-5.6-luna` / `max` 参数创建的只读 Worker，最终判断由 Astra 完成。
+- 执行前确认 branch 为 `main`，HEAD、本地 `origin/main` 及远端实时查询均为 `058a46ebcf323b0f8cccbd3d7e749991d8a5336f`。
+- 功能 commit：`805a3801af76e4e88434e52e154d2069ad3c4d1b`，message：`feat: add AI learning planning and weekly review`；包含原有 44 个 M6B 变更文件，未混入 `target/`、构建产物或无关文件。
+- 第一次 `git push origin main` 成功：`058a46e..805a380 main -> main`。功能 push 后实际核验 HEAD 与 `origin/main` 均为上述功能 SHA，`git status --short` 无输出。
+- 本次实际检查：Git/diff、staged diff、`git diff --check`、`git diff --cached --check` 及跟踪/未忽略文件凭据规则扫描与命中复核；未发现真实凭据或无关变更。测试占位值和环境变量引用不是真实 secret。
+- 后续 docs sync 仅更新 README、ARCHITECTURE、DEVELOPMENT_STATUS、PROJECT_PLAN、DATABASE 和本报告；message 为 `docs: mark M6B checkpoint complete`。该文档提交自身 SHA、第二次 push 与最终 HEAD/工作区检查记录在本次 Checkpoint Report 和 Git 历史中，避免在提交内容内自引用 SHA。
+- 沿用 Closing 的用户 IDEA 155/155、事务 3/3、Codex 离线 38/38、frontend typecheck/build 与两条 smoke 历史证据；本次没有重跑，也没有清理 P2 或修改 production code。
+
+**Astra 结论：M6B = FROZEN / COMMITTED / PUSHED。M6C 尚未开始。**
