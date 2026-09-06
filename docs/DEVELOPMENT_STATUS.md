@@ -1,6 +1,14 @@
 # 开发状态
 
-> 更新日期：2026-09-05。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
+> 更新日期：2026-09-06。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
+
+## 当前工作 — Milestone 6C
+
+M6C AI Job Discovery 已实现并通过 Final Closing Verification，正式 AI 功能达到 3 个。当前 **GO — M6C READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED**，等待外部 Tech Lead 审查；不得视为已提交或冻结 checkpoint。Git 基线仍为 main / 7c062fa134e3f02669aea4667f2e07bd0f609afd。
+
+2026-09-06 本轮实际执行：M6C deterministic 11 类 102 项、M6A/M6B regression 7 类 31 项、真实 MySQL JobDiscoveryControllerIntegrationTests 3 项、frontend typecheck/build 均 PASS。历史且前端未变的 2026-09-05 browser fixture QA 9 组 PASS 本轮复用，未重跑。Smoke #4 历史实测 HTTP 200 / candidates=3 / searchCalls=2 / exactly one discovery / retry=0；Job、Company 均 0→0。Closing 新增真实 Provider 调用为 0。
+
+当前机械统计：28 张业务表、25 个精确 @RestController（不含 @RestControllerAdvice）、21 个 routed pages、3 个已完成 AI 功能。详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。下方 M2～M6B 保留为历史里程碑记录。
 
 ## Milestone 2 结论
 
@@ -145,7 +153,7 @@ M6B 已完成实现与 Closing Verification，并冻结为 **`FROZEN / COMMITTED
 - 两次 live owner 业务资源快照 delta 均 0，已有 WeeklyReview 保持不变；直接 SQL 六表快照证据来自用户 IDEA 集成测试。测试 Plan/Job/Company/Goal 及子资源已删除；应用无账号删除 API，保留独立空测试账号 `userId=1890` 供后续精准清理。真实用户数据未修改，凭据未打印或落盘。
 - 不新增业务表、AI 表或 migration，业务表 28、源码 `@RestController` 24、正式 AI 功能 2。生产模型固定 `deepseek-v4-flash`，Pro calls 0，无模型 fallback、动态选模或业务 tools。
 
-M6B 将正式 AI 功能数从 1 增至 2；课程最低 3 个，仍至少缺 1 个。本里程碑两项 P1 验证门禁均已关闭，M6B 当前结论为 **FROZEN / COMMITTED / PUSHED**；M6C 尚未开始。
+M6B 当时将正式 AI 功能数从 1 增至 2；当时距课程最低 3 个仍缺 1 个。本里程碑两项 P1 验证门禁均已关闭，M6B 当前结论为 **FROZEN / COMMITTED / PUSHED**；在该历史节点 M6C 尚未开始。
 
 ### 2026-09-05 独立 Closing 复核（checkpoint 前历史记录）
 
@@ -159,7 +167,7 @@ M6B 将正式 AI 功能数从 1 增至 2；课程最低 3 个，仍至少缺 1 �
 ## 当前未实现
 
 - Spring Security 完整框架、RBAC、OAuth、Refresh Token、Token 黑名单和复杂 Logout。
-- AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling、AI Evaluation 尚未实现。正式 AI 功能当前为 2 个（JD Structured Parse；AI Learning Planning + Weekly Review）。
+- AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、通用 Agent、AI Evaluation 尚未实现。Tool Calling 已通过 M6C Job Discovery 完成，正式 AI 功能当前为 3 个。
 - Redis、MQ、Elasticsearch、管理员后台和 HR 端。
 
 ## 已知技术债
@@ -171,4 +179,4 @@ M6B 将正式 AI 功能数从 1 增至 2；课程最低 3 个，仍至少缺 1 �
 
 ## 下一步建议
 
-M6B checkpoint 已建立并 push，状态为 `FROZEN / COMMITTED / PUSHED`。课程仍至少缺 1 个正式 AI 功能；M6C 尚未开始，其设计与实施待另行明确任务。
+M6C Final Closing 已通过，等待外部 Tech Lead 审查及用户明确 checkpoint 授权；本轮不 commit/push，不进入 RAG 或新 milestone。

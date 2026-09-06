@@ -2,6 +2,18 @@
 
 ## 文档定位与基线
 
+### 当前推进：Milestone 6C
+
+本轮实现 AI Job Discovery，作为 AI 功能 #3 的验收目标：职业目标与技能 → Spring AI 调用只读 Tavily Search Tool → 原始搜索结果与 opaque resultKey → AI 排序建议 → Java 来源重建 → 用户检查 → 显式确认 → 现有 Job Service。该受限 Tool Calling 用例提前进入 M6C；通用 Agent、RAG、搜索历史和 crawler 仍不在本轮范围。
+
+M6C 不增加业务表或 migration；独立岗位发现页面区分临时候选与正式岗位。没有自动创建 Company，jobType 由用户确认，snippet 不作为完整 rawJd。内存候选 TTL 15 分钟且有容量上限；确认以提交后消费保证同一候选一次性保存。
+
+模型固定 DeepSeek Flash，无 Pro、动态模型、fallback 或自动重试。一次流程通常需要两次模型 HTTP 往返、最多三次，搜索最多两次；离线测试使用 fake；独立 Smoke #4 已通过，本轮 Closing 不追加真实 Provider 调用。M6A/M6B 的 no-tools contract 保持独立。
+
+M6A/M6B 保留既有 checkpoint；M6C 已通过 [Final Closing](M6C_CLOSING_VERIFICATION.md)，正式完成 AI 功能达到 3 个，满足课程最低数量。M6C 当前 READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED，等待外部 Tech Lead 审查。
+
+### 既有规划基线
+
 本文件是《大学生职业发展与求职管理平台的设计与实现》的当前维护版项目规划。业务设计主要继承[原始开工方案](reference/大学生职业发展与求职管理平台_项目开工方案_v1.md)，并结合后续冻结的业务规则整理。
 
 基线发生冲突时按以下原则处理：
@@ -165,7 +177,7 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 2. AI 面试 / 求职复盘
 3. 简历 + JD 匹配分析
 
-与 P0 的 JD 解析合计至少四个规划 AI 功能；当前已实现 JD Structured Parse 与 AI Learning Planning + Weekly Review，正式 AI 功能数为 2，仍至少缺 1 个才能达到课程最低要求。
+与 P0 的 JD 解析合计至少四个规划 AI 功能；当前已完成 JD Structured Parse、AI Learning Planning + Weekly Review、AI Job Discovery / Tool Calling，共 3 个正式 AI 功能，已达到课程最低要求。
 
 ### P2：技术深化版
 
@@ -196,13 +208,13 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 
 课程最终要求至少 18 个 Controller。初始设计基线按业务职责规划的 Controller 数量超过 18 个，覆盖身份与基础档案、职业探索、学习、简历、求职流程和 AI 能力。
 
-Controller 不机械地与表一一对应，最终会按用例和 API 职责合理合并或拆分。当前仓库中实际有 **24** 个 `@RestController`，M6A 新增 `JdAiController`，M6B 新增 `LearningAiController`；课程最低数量指标已达到。
+Controller 不机械地与表一一对应，最终会按用例和 API 职责合理合并或拆分。当前仓库中实际有 **25** 个精确 `@RestController`（不计 Advice），M6A 新增 `JdAiController`，M6B 新增 `LearningAiController`，M6C 新增 `JobDiscoveryController`；课程最低数量指标已达到。
 
 ## 预计前端页面
 
 课程最终要求至少 15 个前端页面。初始设计基线预计约 18～20 个主要业务页面，覆盖登录注册、首页、共享档案、技能、职业目标、公司岗位、学习计划与复盘、简历版本、求职申请详情、测评面试、Offer 和最终复盘；P2 再增加 RAG 问答界面。
 
-部分能力可以用 Tab、弹窗或详情区域组合，但最终课程统计方式需要与老师要求保持一致。当前已完成 **20** 个 routed frontend pages，包括 Application 列表与聚合详情页；后续 AI 页面按业务需要增加，不再为了数量硬扩张。
+部分能力可以用 Tab、弹窗或详情区域组合，但最终课程统计方式需要与老师要求保持一致。当前已完成 **21** 个 routed frontend pages，包括 Application 列表、聚合详情页和 M6C Job Discovery；后续 AI 页面按业务需要增加，不再为了数量硬扩张。
 
 ## 核心演示链路
 
@@ -243,8 +255,8 @@ Controller 不机械地与表一一对应，最终会按用例和 API 职责合�
 | 指标 | 课程最终最低要求 | 当前真实完成 | 当前规划 |
 |---|---:|---:|---:|
 | 数据表 | 18 | 28 | 28 张核心业务表，P2 可能增加技术表 |
-| Controller | 18 | 24 | 超过 18 个，按业务职责划分 |
-| 前端页面 | 15 | 20 | 20 个主要业务页面 |
-| AI 功能 | 3 | 2 | 已实现 JD Structured Parse 与 AI Learning Planning + Weekly Review，仍至少缺 1 个 |
+| Controller | 18 | 25 | 超过 18 个，按业务职责划分 |
+| 前端页面 | 15 | 21 | 21 个 routed view pages，不计 layout/redirect |
+| AI 功能 | 3 | 3 | JD Structured Parse、AI Learning Planning + Weekly Review、AI Job Discovery / Tool Calling |
 
-数据表、Controller 和前端页面的传统数量指标当前已分别达到 28、24、20，均满足课程最低数量要求；正式落地 AI 功能为 2 个，课程最终至少 3 个 AI 功能的要求尚未达到。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。
+数据表、精确 @RestController 和 routed view pages 当前分别为 28、25、21，正式完成 AI 功能为 3 个，均满足课程最低数量要求；RAG 仍未实现。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。

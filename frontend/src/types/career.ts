@@ -71,6 +71,71 @@ export interface JobRequest {
   sourceUrl?: string
 }
 
+export interface JobDiscoveryRequest {
+  careerGoalId: number
+  searchNote?: string
+  locationOverride?: string
+  maxCandidates: number
+}
+
+export interface JobDiscoverySourceFacts {
+  sourceUrl: string
+  sourceTitle: string
+  sourceHost: string
+  sourceSnippet: string
+  publishedAt: string | null
+  discoveredBy: string
+}
+
+export interface JobDiscoveryExtractedFields {
+  jobTitle: string
+  companyName: string | null
+  location: string | null
+  jobTypeSuggestion: string | null
+}
+
+export interface JobDiscoveryMatchedSkill {
+  key: string
+  name: string
+}
+
+export interface JobDiscoveryAiAdvice {
+  rank: number
+  fitSummary: string
+  strengths: string[]
+  gaps: string[]
+  uncertainty: string[]
+  matchedSkills: JobDiscoveryMatchedSkill[]
+}
+
+export interface JobCandidate {
+  candidateId: string
+  expiresAt: string
+  sourceFacts: JobDiscoverySourceFacts
+  extractedFields: JobDiscoveryExtractedFields
+  aiAdvice: JobDiscoveryAiAdvice
+}
+
+export interface JobDiscoveryResponse {
+  candidates: JobCandidate[]
+  warnings: string[]
+  searchCalls: number
+}
+
+export interface JobDiscoveryConfirmRequest {
+  candidateId: string
+  companyId: number
+  title: string
+  city?: string
+  jobType: JobType
+  rawJd?: string
+}
+
+export interface JobDiscoveryConfirmResponse {
+  jobId: number
+  warnings: string[]
+}
+
 export type RequirementType = 'SKILL' | 'EDUCATION' | 'MAJOR' | 'EXPERIENCE' | 'LANGUAGE' | 'OTHER'
 
 export interface JobRequirement {

@@ -78,6 +78,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/career/JobsView.vue'),
       },
       {
+        path: 'career/job-discovery',
+        name: 'career-job-discovery',
+        component: () => import('@/views/career/JobDiscoveryView.vue'),
+      },
+      {
         path: 'career/jobs/:jobId',
         name: 'career-job-detail',
         component: () => import('@/views/career/JobDetailView.vue'),

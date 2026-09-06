@@ -5,6 +5,10 @@ import type {
   Company,
   CompanyRequest,
   Job,
+  JobDiscoveryConfirmRequest,
+  JobDiscoveryConfirmResponse,
+  JobDiscoveryRequest,
+  JobDiscoveryResponse,
   JobNote,
   JobNoteRequest,
   JobRequirement,
@@ -79,6 +83,20 @@ export function getJob(id: number): Promise<Job> {
 
 export function createJob(payload: JobRequest): Promise<Job> {
   return body(client.post<Job>('/v1/jobs', payload))
+}
+
+const JOB_DISCOVERY_TIMEOUT_MS = 180_000
+
+export function discoverJobsWithAi(payload: JobDiscoveryRequest): Promise<JobDiscoveryResponse> {
+  return body(
+    client.post<JobDiscoveryResponse>('/v1/jobs/ai/discovery', payload, {
+      timeout: JOB_DISCOVERY_TIMEOUT_MS,
+    }),
+  )
+}
+
+export function confirmAiDiscoveredJob(payload: JobDiscoveryConfirmRequest): Promise<JobDiscoveryConfirmResponse> {
+  return body(client.post<JobDiscoveryConfirmResponse>('/v1/jobs/ai/discovery/confirm', payload))
 }
 
 export function updateJob(id: number, payload: JobRequest): Promise<Job> {

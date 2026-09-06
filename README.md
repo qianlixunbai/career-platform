@@ -49,9 +49,11 @@ Milestone 5B Application Management 已完成、冻结、commit 并 push 到 `ma
 
 Milestone 6A — AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`；commit 为 `feat: add AI JD structured parsing`。它采用 Spring AI 1.1.8、provider-neutral `AiChatGateway`、typed structured output、evidence 校验、真实 Skill 匹配、重复检测和 SHA-256 source fingerprint；parse 永不写库，只有用户确认后才在 Java 单事务中追加到既有 `job_requirement`。AI 默认关闭，无 key/provider 时传统系统仍可启动和使用。生产 Provider 固定为 DeepSeek Official API（OpenAI-compatible adapter），模型硬锁为 `deepseek-v4-flash`，不允许客户端、环境变量或 runtime options 覆盖，也没有 Pro fallback。当前规模保持 28 张业务表与 20 个 routed pages，Controller 为 24 个。离线 AI 定向测试、Spring AI structured-output wiring、frontend typecheck/build、localhost HTTP business smoke 与 authenticated DeepSeek Flash smoke 均已通过；parse 前后 `job_requirement` 数量不变、confirm 后按选择增加、stale fingerprint 返回 409、跨用户 Job 返回 404。最终真实 MySQL full Maven 为 132 项、Failures 0、Errors 0、Skipped 0，M6A 状态为 `FROZEN / COMMITTED / PUSHED`。
 
-Milestone 6B — AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`；功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，commit 为 `feat: add AI learning planning and weekly review`，已 push 到 `origin/main`。以下验证均来自 checkpoint 前的 Closing，本次未重跑：用户 IDEA Full Maven 155 项及事务集成类 3/3 全绿；Astra 对 IDEA backend 执行真实 DeepSeek Flash Plan/Review smoke 各一次，均 PASS。Learning 列表页可基于用户明确时间预算、可选职业目标、结构化岗位要求、技能与有限学习历史生成可编辑候选；候选不写库，只有用户确认后才由 `LearningService` 在同一事务内创建一个 Plan 与全部 Tasks。详情页可生成带 Java metrics 与可信 evidence 的周复盘候选；“应用到表单”不会自动覆盖或保存现有 Review。M6B 不新增表、migration 或 routed page，当前规模为 28 张业务表、24 个 `@RestController`、20 个 routed pages；正式 AI 功能数由 1 增至 2，课程最低 3 个，仍至少缺 1 个。生产模型仍硬锁 `deepseek-v4-flash`，无 tools、无动态 model override、无 Pro fallback。
+Milestone 6B — AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`；功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，commit 为 `feat: add AI learning planning and weekly review`，已 push 到 `origin/main`。以下验证均来自 checkpoint 前的 Closing，本次未重跑：用户 IDEA Full Maven 155 项及事务集成类 3/3 全绿；Astra 对 IDEA backend 执行真实 DeepSeek Flash Plan/Review smoke 各一次，均 PASS。Learning 列表页可基于用户明确时间预算、可选职业目标、结构化岗位要求、技能与有限学习历史生成可编辑候选；候选不写库，只有用户确认后才由 `LearningService` 在同一事务内创建一个 Plan 与全部 Tasks。详情页可生成带 Java metrics 与可信 evidence 的周复盘候选；“应用到表单”不会自动覆盖或保存现有 Review。M6B 不新增表、migration 或 routed page，当前规模为 28 张业务表、24 个 `@RestController`、20 个 routed pages；当时正式 AI 功能数由 1 增至 2；当前数量以以下 M6C Closing 为准。生产模型仍硬锁 `deepseek-v4-flash`，无 tools、无动态 model override、无 Pro fallback。
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
+
+Milestone 6C — AI Job Discovery 已实现并通过 Final Closing Verification，是第 3 个正式 AI 功能；当前 READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED，等待外部 Tech Lead 审查。它基于职业目标和用户技能，通过专用 Spring AI Tool Calling gateway 调用 Tavily Search；页面分开展示来源事实、待核实字段和 AI 匹配建议。发现过程不写业务数据库，只有用户选择已有公司、确认岗位类型并显式保存后才进入现有 `CareerService.createJob()`。候选有效期 15 分钟，不新增表或 migration。M6A/M6B 的 no-tools 路径保持独立。本轮 M6C deterministic 102 项、M6A/M6B regression 31 项、真实 MySQL 集成 3 项、前端 typecheck/build 均通过；Real Provider Smoke #4 返回 3 个候选、searchCalls=2，Job/Company 均 0→0。详情见 [M6C Closing Verification](docs/M6C_CLOSING_VERIFICATION.md)。当前机械统计为 28 张业务表、25 个精确 @RestController、21 个 routed pages、3 个已完成 AI 功能；RAG 未实现。
 
 ## 本地运行前提
 
@@ -67,6 +69,8 @@ Milestone 6B — AI Learning Planning + Weekly Review 已完成、冻结，状�
    - `AI_JD_PARSE_ENABLED`：M6A 旧开关，仅作为 `AI_CHAT_ENABLED` 未设置时的临时兼容 fallback。
    - `AI_CHAT_PROVIDER`：启用时设为 `openai`；默认 `none`。
    - `AI_API_KEY`：启用真实 Provider 时从本地环境提供，不写入仓库。
+   - `TAVILY_SEARCH_ENABLED`：M6C 外部搜索开关，默认 `false`；Job Discovery 同时要求 Chat AI 可用。
+   - `TAVILY_API_KEY`：仅从用户本地环境或 IDEA Run Configuration 提供；无需且禁止在聊天中发送。搜索 endpoint 固定为官方 `https://api.tavily.com/search`，不支持任意 URL 配置。
    - DeepSeek endpoint 与生产模型在应用配置中固定为 `https://api.deepseek.com` 和 `deepseek-v4-flash`；不支持 `AI_BASE_URL`、`AI_MODEL` 或客户端动态覆盖。
 5. 执行 `./mvnw spring-boot:run`；Windows PowerShell 可执行 `.\mvnw.cmd spring-boot:run`。
 

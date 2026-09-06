@@ -15,6 +15,16 @@ Milestone 6B 已冻结，状态为 `FROZEN / COMMITTED / PUSHED`，功能 checkp
 
 ## SQL 文件与实际应用状态
 
+### M6C Job Discovery
+
+M6C 不增加 migration 或表，数据库结构继续复用现有 Job/Company。候选只存在于有容量上限和 15 分钟 TTL 的内存 store，重启后丢失；没有搜索历史表。Discovery 读取 owner-owned CareerGoal/UserSkill，不写 Job、Company、JobRequirement、CareerGoal 或 UserSkill。
+
+显式 confirm 在 Java 中以 candidateId 找回来源事实，并在事务中复用 `CareerService.createJob()`：companyId 必须属于当前用户，jobType/title/city 由用户确认；sourceName 是原网页 host，sourceUrl 是搜索结果原始 URL；publishDate 仅映射 Provider 明确提供且可安全解析的日期，否则 null。用户未粘贴完整 JD 时 rawJd 为 null，不能拿 snippet 代替。数据库事务提交成功后才消费候选，失败保留候选供重试。
+
+没有新增 `UNIQUE(sourceUrl)`；同一候选的重复确认受一次性消费保护，不同 discovery 找到同一 URL 仍可能被用户分别保存。2026-09-06 Closing 本轮实际执行 JobDiscoveryControllerIntegrationTests：3 tests / 0 failures / 0 errors / 0 skipped，真实 MySQL connection 已建立。覆盖 owner isolation、deterministic discovery no-write、trusted confirm 与 concurrent confirm；未运行 Full Maven。Smoke #4 的 HTTP owner-scoped Job/Company 数量均 0→0，属于独立真实 Provider 证据。详细证据见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。
+
+### 既有迁移
+
 | 文件 | 内容 | 状态 |
 |---|---|---|
 | `sql/001_create_app_user.sql` | 用户表 | 已应用 |

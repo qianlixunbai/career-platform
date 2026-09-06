@@ -82,6 +82,7 @@ import {
   OfficeBuilding,
   Promotion,
   Reading,
+  Search,
   School,
   Star,
   SwitchButton,
@@ -123,7 +124,8 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { label: '职业目标', path: '/career/goals', icon: Aim },
       { label: '公司', path: '/career/companies', icon: OfficeBuilding },
-      { label: '岗位', path: '/career/jobs', icon: Collection },
+      { label: '我的岗位', path: '/career/jobs', icon: Collection },
+      { label: '岗位发现', path: '/career/job-discovery', icon: Search },
     ],
   },
   {

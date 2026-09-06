@@ -2,9 +2,41 @@
 
 ## 文档状态
 
-本文记录截至 2026-09-05 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`，功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，已 push 到 `origin/main`。Closing 历史证据：用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。本次 checkpoint 未重跑 Maven、前端构建或真实 Provider smoke，未修改生产代码。
+本文记录截至 2026-09-06 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`，功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，已 push 到 `origin/main`。Closing 历史证据：用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。以上为 M6B checkpoint 历史记录；当前 M6C Closing 的实际重跑结果见下文及专项报告。
 
-## 技术基线
+## Milestone 6C — Job Discovery 架构
+
+M6C 在独立路径引入 Spring AI Tool Calling；下文 M6A/M6B 的 no-tools 说明继续适用于原有两个功能。Real Provider Gate 与本轮真实 MySQL、deterministic、前端构建均已通过，当前 READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED，详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。
+
+```text
+CareerService.getGoal(owner) + ProfileService.listUserSkills(owner)
+  → bounded context + canonical skill keys
+  → AiToolCallingGateway (Flash, thinking disabled, retry 0)
+  → Spring AI ToolCallingManager → request-local searchJobs
+  → JobSearchGateway → fixed Tavily Search endpoint
+  → request-local JobSearchSession (opaque resultKey → provider result)
+  → AI resultKey + advice → Java reconstruction / validation
+  → bounded in-memory CandidateStore → user review
+  → explicit confirm → transaction → CareerService.createJob → commit → consume
+```
+
+- API：`POST /api/v1/jobs/ai/discovery`、`POST /api/v1/jobs/ai/discovery/confirm`。所有权取认证上下文，不接受客户端 userId。
+- 专用 gateway 固定 `deepseek-v4-flash` 与官方 DeepSeek endpoint，不复用带可变 default tools 的全局 ChatClient，不注册业务 Tool bean。原 `AiChatGateway`、`SpringAiChatGateway` 继续强制 `toolChoice=none`。
+- 一次 discovery 是一个逻辑 AI 流程。工具请求和工具结果后的模型分析需要 HTTP 往返：正常两次 completion，最多三次；Tavily 最多两次、每次最多十条，应用 Provider retry 为零。不会将流程数冒充实际 HTTP 调用次数。
+- `searchJobs(query, location, maxResults)` 只读。Java 限制 query 400、location 100 字符及 results 1～10；每个请求独立创建 Tool/session，不共享 resultKey map。
+- Tavily 只使用固定 `https://api.tavily.com/search`，关闭自动参数、answer 和 raw content；无客户端 endpoint、URL fetch、crawler 或额外 Provider SDK。只提供 `TAVILY_SEARCH_ENABLED`（默认 false）和 `TAVILY_API_KEY`。
+- 来源事实由 Java 从 Provider 结果重建：原始 sourceUrl、网页标题、host、摘要和明确提供的日期。URL 仅 http/https，拒绝本地地址和不安全形式，本次按 canonical URL 去重。Tavily 是 discoveredBy，sourceName 取目标 host。
+- AI 输出只含 resultKey、rank、fitSummary、strengths、gaps、uncertainty、matchedSkillKeys 和 warnings。未知 resultKey 不进入候选，技能名由 Java canonical map 还原。外部标题、摘要、Goal、Skill 和用户文本都属于不可信数据。
+- 返回的 `sourceFacts`、`extractedFields`、`aiAdvice` 明确分层。候选标题是网页标题的待审核截取；公司/岗位类型可能未知；地点候选来自搜索条件，不能称为网页事实。
+- CandidateStore 的设计限额为 TTL 15 分钟、每用户 50 条、全局 1000 条。确认在存储锁内校验 owner/TTL/consumed，并在独立事务提交成功后消费；失败不消费。短暂的数据库确认串行执行，网络搜索不持锁。重启会丢失临时候选。
+- confirm 只接受 candidateId、用户选择的 companyId/jobType、title/city 和可选完整 rawJd。Java 从 store 填写 sourceUrl/sourceName/publishDate，复用现有 `CareerService.createJob()`。没有自动 Company 创建，也没有发现即保存。
+- snippet 不写入 rawJd；未粘贴完整 JD 时 rawJd 为 null，搜索摘要只在临时候选中展示，后续补全 JD 才能使用 M6A。无 migration、Redis、搜索历史、RAG、通用 Agent 或动态模型。
+
+D1 诊断仅按异常类型细分 FINAL_RESPONSE_PARSE 下的 cleaner、syntax、unknown property、mapping 与其他 deserialize failure；不修改 cleaner、DTO、ObjectMapper、Prompt 或 Service 校验契约。Handler 仅记录固定 stage/rule，对外仍为 502 / AI_INVALID_RESPONSE 和固定安全消息。package-private cleaner seam 仅用于离线故障注入，生产构造器固定使用默认 cleaner，不增加 HTTP/配置入口。
+
+官方兼容性依据：[Spring AI 1.1 Tool Calling](https://docs.spring.io/spring-ai/reference/1.1/api/tools.html)、[DeepSeek 模型能力](https://api-docs.deepseek.com/quick_start/pricing)、[thinking 参数](https://api-docs.deepseek.com/guides/thinking_mode/)、[Tavily Search](https://docs.tavily.com/documentation/api-reference/endpoint/search)。本地 `ToolCallingCompatibilityTest` 已实际使用解析的 Spring AI 1.1.8 callback/manager 执行离线 spike；这不替代真实 Provider smoke。
+
+## 通用技术基线
 
 - Java 21、Spring Boot 3.5.14
 - MyBatis-Plus 3.5.17、MySQL
@@ -136,4 +168,4 @@ Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删�
 
 ## 后续规划边界
 
-JD Structured Parse 是第 1 个正式 AI 功能，AI Learning Planning + Weekly Review 是第 2 个。AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、Agent、Tool Calling 和 AI Evaluation 仍未实现。后续 AI 输出继续遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
+JD Structured Parse 是第 1 个正式 AI 功能，AI Learning Planning + Weekly Review 是第 2 个，M6C AI Job Discovery / Tool Calling 是第 3 个。AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、通用 Agent 和 AI Evaluation 仍未实现。后续 AI 输出继续遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。

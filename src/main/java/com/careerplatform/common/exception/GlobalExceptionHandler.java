@@ -19,6 +19,8 @@ import java.time.Instant;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(AiServiceUnavailableException.class)
     public ResponseEntity<ApiErrorResponse> handleAiServiceUnavailable(AiServiceUnavailableException exception) {
@@ -32,6 +34,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AiInvalidResponseException.class)
     public ResponseEntity<ApiErrorResponse> handleAiInvalidResponse(AiInvalidResponseException exception) {
+        if (exception.getRuleId() != null) {
+            log.warn("AI_INVALID_RESPONSE stage={} rule={}", exception.getStage(), exception.getRuleId());
+        }
         return error(HttpStatus.BAD_GATEWAY, "AI_INVALID_RESPONSE", "AI 返回内容无法安全处理，请重试");
     }
 
