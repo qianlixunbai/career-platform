@@ -4,9 +4,9 @@
 
 ## 当前工作 — Milestone 6C
 
-M6C AI Job Discovery 已实现并通过 Final Closing Verification，正式 AI 功能达到 3 个。当前 **GO — M6C READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED**，等待外部 Tech Lead 审查；不得视为已提交或冻结 checkpoint。Git 基线仍为 main / 7c062fa134e3f02669aea4667f2e07bd0f609afd。
+M6C AI Job Discovery 已实现并通过 Final Closing Verification，正式 AI 功能达到 3 个。当前状态为 **FROZEN / COMMITTED / PUSHED**；M6C checkpoint / 本次 docs-only cleanup 起始 HEAD 为 `915acc0d02ac173877ae49b10fff96243b236cd5`，已 push 到 `origin/main`。本次 cleanup 只同步文档，不改变 M6C checkpoint；原 Closing 的 READY FOR CHECKPOINT 决策属于 pre-checkpoint historical decision。
 
-2026-09-06 本轮实际执行：M6C deterministic 11 类 102 项、M6A/M6B regression 7 类 31 项、真实 MySQL JobDiscoveryControllerIntegrationTests 3 项、frontend typecheck/build 均 PASS。历史且前端未变的 2026-09-05 browser fixture QA 9 组 PASS 本轮复用，未重跑。Smoke #4 历史实测 HTTP 200 / candidates=3 / searchCalls=2 / exactly one discovery / retry=0；Job、Company 均 0→0。Closing 新增真实 Provider 调用为 0。
+M6C Closing 阶段的历史验证（2026-09-06）包括：deterministic 11 类 102 项、M6A/M6B regression 7 类 31 项、真实 MySQL JobDiscoveryControllerIntegrationTests 3 项、frontend typecheck/build 均 PASS。2026-09-05 browser fixture QA 9 组为历史证据，本次未重跑。Smoke #4 历史实测 HTTP 200 / candidates=3 / searchCalls=2 / exactly one discovery / retry=0；Job、Company 均 0→0。Closing 阶段新增真实 Provider 调用为 0；本次 post-M6C docs-only cleanup 未运行测试或 build。
 
 当前机械统计：28 张业务表、25 个精确 @RestController（不含 @RestControllerAdvice）、21 个 routed pages、3 个已完成 AI 功能。详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。下方 M2～M6B 保留为历史里程碑记录。
 
@@ -132,7 +132,7 @@ M6A 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218
 - Spring AI structured-output integration 使用 deterministic `ChatModel` 真实经过 `ChatClient` typed conversion wiring，结果 PASS。
 - 最终真实 MySQL full Maven suite：132 项、Failures 0、Errors 0、Skipped 0，`BUILD SUCCESS`。中间阶段的凭据可见性问题已经解决；随后唯一失败用例确认是测试外层事务导致的 isolation bug，并在改用 `Propagation.NOT_SUPPORTED` 与 committed fixture cleanup 后通过单项、整类及 full suite 验证。Production confirmation code 未修改。
 
-因此 M6A 当前结论为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `07712a687685e368e35e5c04bb0f294ae218c265`。P0 = 0，P1 = 0；P2 保留 Vite 主 chunk warning 与 Mockito dynamic agent future-JDK warning。AI implementation count 已从 0 增至 1；课程最低 3 个，仍至少缺 2 个。
+因此 M6A 在其冻结节点的结论为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `07712a687685e368e35e5c04bb0f294ae218c265`。P0 = 0，P1 = 0；P2 保留 Vite 主 chunk warning 与 Mockito dynamic agent future-JDK warning。M6A 冻结时 AI implementation count 已从 0 增至 1；在该历史节点课程最低 3 个，仍至少缺 2 个。
 
 ## Milestone 6B — AI Learning Planning + Weekly Review
 
@@ -151,9 +151,9 @@ M6B 已完成实现与 Closing Verification，并冻结为 **`FROZEN / COMMITTED
 - Astra/Codex 在 Closing 初始审计阶段实际运行 frontend typecheck/build 均 PASS；此后前端未修改，最终阶段未机械重复构建。保留既有主 chunk warning。M6B 不新增 routed page，仍为 20。
 - Astra 在 2026-09-05 对用户 IDEA 启动的 `localhost:8080` 执行真实 DeepSeek Plan/Review smoke，各一次且均 PASS，脚本重试 0、AI confirm 0。Plan 返回 3 tasks、270/300 分钟、buffer 30、13 条可信 evidence；Review 指标为 4 tasks、四种状态各 1、完成率 25%、计划 300/实际 90 分钟、3 条学习记录、9 条可信 evidence。
 - 两次 live owner 业务资源快照 delta 均 0，已有 WeeklyReview 保持不变；直接 SQL 六表快照证据来自用户 IDEA 集成测试。测试 Plan/Job/Company/Goal 及子资源已删除；应用无账号删除 API，保留独立空测试账号 `userId=1890` 供后续精准清理。真实用户数据未修改，凭据未打印或落盘。
-- 不新增业务表、AI 表或 migration，业务表 28、源码 `@RestController` 24、正式 AI 功能 2。生产模型固定 `deepseek-v4-flash`，Pro calls 0，无模型 fallback、动态选模或业务 tools。
+- 不新增业务表、AI 表或 migration；M6B 冻结时业务表 28、源码 `@RestController` 24、正式 AI 功能 2。生产模型固定 `deepseek-v4-flash`，Pro calls 0，无模型 fallback、动态选模或业务 tools。
 
-M6B 当时将正式 AI 功能数从 1 增至 2；当时距课程最低 3 个仍缺 1 个。本里程碑两项 P1 验证门禁均已关闭，M6B 当前结论为 **FROZEN / COMMITTED / PUSHED**；在该历史节点 M6C 尚未开始。
+M6B 当时将正式 AI 功能数从 1 增至 2；当时距课程最低 3 个仍缺 1 个。本里程碑两项 P1 验证门禁均已关闭，M6B 在该历史节点的结论为 **FROZEN / COMMITTED / PUSHED**；在该历史节点 M6C 尚未开始。
 
 ### 2026-09-05 独立 Closing 复核（checkpoint 前历史记录）
 
@@ -179,4 +179,4 @@ M6B 当时将正式 AI 功能数从 1 增至 2；当时距课程最低 3 个仍�
 
 ## 下一步建议
 
-M6C Final Closing 已通过，等待外部 Tech Lead 审查及用户明确 checkpoint 授权；本轮不 commit/push，不进入 RAG 或新 milestone。
+M6C checkpoint 已完成并 push。后续方向按 P2 规划评估 RAG；RAG 当前仍未实现，本轮不进入新功能或新 milestone。

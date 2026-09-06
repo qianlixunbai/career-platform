@@ -1,6 +1,20 @@
 # Milestone 6C — Final Closing Verification
 
-更新于 2026-09-06（Asia/Shanghai）。当前结论：**GO — M6C READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED**。等待外部 Tech Lead 审查及用户单独 checkpoint 授权。
+## Post-checkpoint Current Status
+
+- M6C 状态：**FROZEN / COMMITTED / PUSHED**。
+- M6C checkpoint：`915acc0d02ac173877ae49b10fff96243b236cd5`。
+- 分支：`main`；M6C checkpoint 后已确认工作树 clean，并已 push 到 `origin/main`。
+- 当前机械统计：28 business tables、25 exact `@RestController`、21 routed frontend pages、3 completed formal AI functions。
+- 三个正式 AI 功能：JD Structured Parse；AI Learning Planning + Weekly Review；AI Job Discovery / Tool Calling。
+- Real Provider Gate：**PASS**。RAG：**NOT IMPLEMENTED**。
+- 本次 post-M6C cleanup 仅同步文档，不改变 M6C checkpoint；本文件以下 Closing 验证内容均属于 checkpoint 前历史证据。
+
+原 Closing 的 **READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED** 是 pre-checkpoint historical decision，不代表当前状态。
+
+## Pre-checkpoint Closing Decision (Historical)
+
+更新于 2026-09-06（Asia/Shanghai）。原 Closing 结论为：**GO — M6C READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED**。当时等待外部 Tech Lead 审查及用户单独 checkpoint 授权；该结论不代表当前状态。
 
 ## 本轮 Preflight 与范围
 
@@ -89,14 +103,14 @@ HEAD 基线精确 RestControllers=24；M6C 新增一个后=25。此前“基线2
 - 外部 DPAPI 文件及内容未进入 Git/diff；不在文档记录其真实绝对路径或凭据。
 - git diff --check PASS（另检查修改的 untracked 文件）；staged empty；未 commit/push/reset/stash/clean/rebase。
 
-**GO — M6C READY FOR CHECKPOINT**。等待外部 Tech Lead 审查；本轮不建立 checkpoint。
+**Pre-checkpoint historical decision — GO: M6C READY FOR CHECKPOINT**。该决定属于 checkpoint 前 Closing；当时等待外部 Tech Lead 审查，本次不将其作为当前状态。
 
 ---
 
 ## 历史证据存档（以下为 Smoke #2 结束时的旧状态，不代表当前 Gate）
 
 
-更新于 2026-09-06 12:17（Asia/Shanghai），当前结论：**NO-GO — REAL PROVIDER GATE FAILED / NOT COMMITTED / NOT PUSHED**。
+更新于 2026-09-06 12:17（Asia/Shanghai）。At that historical point（Smoke #2 结束时、pre-checkpoint），结论为：**NO-GO — REAL PROVIDER GATE FAILED / NOT COMMITTED / NOT PUSHED**。
 
 沿用既有实现及验收证据。本次按用户第二次 smoke 授权只执行一次 localhost discovery；失败后停止，未执行成功后的 Final Closing 机械检查；不新增 Worker、不扩大范围、不重复 deterministic tests、不 confirm/save Job、不 commit/push。之前额度收口记录已由下列真实结果续接。
 
@@ -184,7 +198,7 @@ HEAD 基线精确 RestControllers=24；M6C 新增一个后=25。此前“基线2
 -Dtest=JobDiscoveryConfigurationTest,ToolCallingCompatibilityTest,SpringAiToolCallingGatewayTest,TavilyJobSearchGatewayTest,JobSearchSessionTest,JobSearchToolTest,JobDiscoveryCandidateStoreTest,JobDiscoveryContextBuilderTest,JobDiscoveryServiceTest,JobDiscoveryControllerTest,SpringAiChatGatewayTest,JdParseServiceTest,JdParsePromptFactoryTest,LearningAiContextBuilderTest,LearningAiPromptFactoryTest,LearningAiServiceTest,DeepSeekFlashConfigurationTest
 ```
 
-## 基线与现场
+## 基线与现场（Historical snapshot）
 
 main，HEAD 与本地 origin/main 为 7c062fa134e3f02669aea4667f2e07bd0f609afd；未 fetch。开始时 clean；无 commit/push/stage/reset/stash/clean/rebase 或删除资料。
 
@@ -192,7 +206,7 @@ main，HEAD 与本地 origin/main 为 7c062fa134e3f02669aea4667f2e07bd0f609afd�
 
 target/m6c-browser-qa.cjs、target/m6c-browser-inspect.cjs、target 测试报告、frontend/dist 均保留。Vite session 90223 / 5173 状态续接时检查，不启动重复实例。
 
-## Dirty files
+## Dirty files（Historical snapshot）
 
 ```text
  M README.md

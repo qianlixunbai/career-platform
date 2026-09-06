@@ -6,7 +6,7 @@
 
 ## Milestone 6C — Job Discovery 架构
 
-M6C 在独立路径引入 Spring AI Tool Calling；下文 M6A/M6B 的 no-tools 说明继续适用于原有两个功能。Real Provider Gate 与本轮真实 MySQL、deterministic、前端构建均已通过，当前 READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED，详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。
+M6C 在独立路径引入 Spring AI Tool Calling；下文 M6A/M6B 的 no-tools 说明继续适用于原有两个功能。M6C 当前状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `915acc0d02ac173877ae49b10fff96243b236cd5`。Real Provider Gate 为 `PASS`；RAG 尚未实现。详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。
 
 ```text
 CareerService.getGoal(owner) + ProfileService.listUserSkills(owner)
@@ -48,7 +48,7 @@ D1 诊断仅按异常类型细分 FINAL_RESPONSE_PARSE 下的 cleaner、syntax�
 
 ### Frontend
 
-当前前端为 Vue 3、TypeScript、Vite、Vue Router、Axios 和 Element Plus，已落地 20 个 routed frontend pages。前端通过 HTTP / JSON REST API 调用 Spring Boot backend。
+当前前端为 Vue 3、TypeScript、Vite、Vue Router、Axios 和 Element Plus，已落地 21 个 routed frontend pages。前端通过 HTTP / JSON REST API 调用 Spring Boot backend。
 
 ```text
 HTTP / JSON
@@ -75,12 +75,12 @@ com.careerplatform
 ├─ learning   周计划、任务、学习记录、周复盘、笔记与资料元数据
 ├─ resume     简历、版本、内容快照
 ├─ application 投递、阶段历史、测评、面试、Offer、最终复盘
-└─ ai          可选 Chat foundation、JD parse 与 Learning AI 候选边界
+└─ ai          可选 Chat foundation、JD parse、Learning AI 与 Job Discovery 候选边界
 ```
 
 当前 backend package 实际包含 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning`、`resume`、`application` 和 `ai`。
 
-当前源码扫描实际包含 24 个 `@RestController`；M6A 的 `JdAiController` 承载 JD parse/confirm，M6B 的 `LearningAiController` 承载 Plan/Review suggestion 与 Plan confirm。Controller 不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
+当前源码扫描实际包含 25 个精确 `@RestController`（不含 `@RestControllerAdvice`）；M6A 的 `JdAiController` 承载 JD parse/confirm，M6B 的 `LearningAiController` 承载 Plan/Review suggestion 与 Plan confirm，M6C 的 `JobDiscoveryController` 承载 Job Discovery/confirm。Controller 不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
 
 ## AI Foundation 与结构化候选边界
 

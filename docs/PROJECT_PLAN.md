@@ -2,15 +2,15 @@
 
 ## 文档定位与基线
 
-### 当前推进：Milestone 6C
+### 当前状态：Milestone 6C 已完成
 
-本轮实现 AI Job Discovery，作为 AI 功能 #3 的验收目标：职业目标与技能 → Spring AI 调用只读 Tavily Search Tool → 原始搜索结果与 opaque resultKey → AI 排序建议 → Java 来源重建 → 用户检查 → 显式确认 → 现有 Job Service。该受限 Tool Calling 用例提前进入 M6C；通用 Agent、RAG、搜索历史和 crawler 仍不在本轮范围。
+本里程碑已完成 AI Job Discovery，作为 AI 功能 #3 的验收目标：职业目标与技能 → Spring AI 调用只读 Tavily Search Tool → 原始搜索结果与 opaque resultKey → AI 排序建议 → Java 来源重建 → 用户检查 → 显式确认 → 现有 Job Service。该受限 Tool Calling 用例提前进入 M6C；通用 Agent、RAG、搜索历史和 crawler 仍不在本轮范围。
 
 M6C 不增加业务表或 migration；独立岗位发现页面区分临时候选与正式岗位。没有自动创建 Company，jobType 由用户确认，snippet 不作为完整 rawJd。内存候选 TTL 15 分钟且有容量上限；确认以提交后消费保证同一候选一次性保存。
 
 模型固定 DeepSeek Flash，无 Pro、动态模型、fallback 或自动重试。一次流程通常需要两次模型 HTTP 往返、最多三次，搜索最多两次；离线测试使用 fake；独立 Smoke #4 已通过，本轮 Closing 不追加真实 Provider 调用。M6A/M6B 的 no-tools contract 保持独立。
 
-M6A/M6B 保留既有 checkpoint；M6C 已通过 [Final Closing](M6C_CLOSING_VERIFICATION.md)，正式完成 AI 功能达到 3 个，满足课程最低数量。M6C 当前 READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED，等待外部 Tech Lead 审查。
+M6A/M6B 保留既有 checkpoint；M6C 已通过 [Final Closing](M6C_CLOSING_VERIFICATION.md)，正式完成 AI 功能达到 3 个，满足课程最低数量。M6C 当前状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `915acc0d02ac173877ae49b10fff96243b236cd5`，Real Provider Gate 为 `PASS`。RAG 仍未实现，后续按 P2 规划评估。
 
 ### 既有规划基线
 
@@ -184,7 +184,7 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 按以下优先级推进：
 
 1. RAG 学习资料问答 + 来源 / 原文追溯：P2 内的固定必做目标。
-2. Agent + Tool Calling：第二优先级。
+2. 通用 Agent + Tool Calling：第二优先级；受限的 M6C Job Discovery Tool Calling 已完成，但通用 Agent 尚未实现。
 3. AI Evaluation / A-B 实验：有余力再做。
 
 “P2 必做”表示 RAG 不是 P2 内的可选项；它不表示必须先完成 RAG 才能验收 P0 / P1 里程碑，也不改变 P0 → P1 → P2 的实施顺序。
