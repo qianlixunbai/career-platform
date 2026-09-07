@@ -22,6 +22,8 @@ import type {
   WeeklyReviewRequest,
 } from '@/types/learning'
 
+const LEARNING_AI_TIMEOUT_MS = 180_000
+
 export async function listLearningPlans(): Promise<LearningPlan[]> {
   const response = await client.get<LearningPlan[]>('/v1/learning-plans')
   return response.data
@@ -51,11 +53,14 @@ export async function deleteLearningPlan(planId: number): Promise<void> {
  * context for this request; no plan or task is persisted until confirmation.
  */
 export async function suggestLearningPlanWithAi(
-  payload: LearningPlanAiSuggestionRequest,
+    payload: LearningPlanAiSuggestionRequest,
 ): Promise<LearningPlanAiSuggestionResponse> {
   const response = await client.post<LearningPlanAiSuggestionResponse>(
-    '/v1/learning-plans/ai/plan-suggestion',
-    payload,
+      '/v1/learning-plans/ai/plan-suggestion',
+      payload,
+      {
+        timeout: LEARNING_AI_TIMEOUT_MS,
+      },
   )
   return response.data
 }
@@ -131,7 +136,10 @@ export async function deleteStudyRecord(taskId: number, recordId: number): Promi
 }
 
 export async function getWeeklyReview(planId: number): Promise<WeeklyReview> {
-  const response = await client.get<WeeklyReview>(`/v1/learning-plans/${planId}/review`)
+  const response = await client.get<WeeklyReview>(
+      `/v1/learning-plans/${planId}/review`,
+      { silentStatuses: [404] },
+  )
   return response.data
 }
 
@@ -146,7 +154,11 @@ export async function updateWeeklyReview(planId: number, payload: WeeklyReviewRe
  */
 export async function suggestWeeklyReviewWithAi(planId: number): Promise<WeeklyReviewAiSuggestionResponse> {
   const response = await client.post<WeeklyReviewAiSuggestionResponse>(
-    `/v1/learning-plans/${planId}/ai/review-suggestion`,
+      `/v1/learning-plans/${planId}/ai/review-suggestion`,
+      undefined,
+      {
+        timeout: LEARNING_AI_TIMEOUT_MS,
+      },
   )
   return response.data
 }

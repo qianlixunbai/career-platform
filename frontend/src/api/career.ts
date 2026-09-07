@@ -86,6 +86,7 @@ export function createJob(payload: JobRequest): Promise<Job> {
 }
 
 const JOB_DISCOVERY_TIMEOUT_MS = 180_000
+const JD_PARSE_TIMEOUT_MS = 180_000
 
 export function discoverJobsWithAi(payload: JobDiscoveryRequest): Promise<JobDiscoveryResponse> {
   return body(
@@ -132,7 +133,11 @@ export function deleteJobRequirement(jobId: number, id: number): Promise<void> {
 }
 
 export function parseJobRequirementsWithAi(jobId: number): Promise<JdParseResponse> {
-  return body(client.post<JdParseResponse>(`/v1/jobs/${jobId}/ai/jd-parse`))
+  return body(
+      client.post<JdParseResponse>(`/v1/jobs/${jobId}/ai/jd-parse`, undefined, {
+        timeout: JD_PARSE_TIMEOUT_MS,
+      }),
+  )
 }
 
 export function confirmAiJobRequirements(jobId: number, payload: JdParseConfirmRequest): Promise<JdParseConfirmResponse> {
