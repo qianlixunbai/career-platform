@@ -23,8 +23,8 @@
           <el-form-item label="当前城市">
             <el-input v-model="form.currentCity" maxlength="100" placeholder="例如：上海" />
           </el-form-item>
-          <el-form-item label="头像地址">
-            <el-input v-model="form.avatarUrl" maxlength="500" placeholder="https://..." />
+          <el-form-item label="邮箱地址">
+            <el-input v-model="form.email" maxlength="254" placeholder="例如：zhangsan@example.com" />
           </el-form-item>
           <el-form-item label="个人网站">
             <el-input v-model="form.personalWebsite" maxlength="500" placeholder="https://..." />
@@ -34,10 +34,6 @@
           </el-form-item>
         </div>
 
-        <div v-if="form.avatarUrl" class="avatar-preview">
-          <span>头像预览</span>
-          <el-avatar :size="72" :src="form.avatarUrl" />
-        </div>
       </el-form>
     </el-card>
   </div>
@@ -54,7 +50,7 @@ const saving = ref(false)
 const form = reactive<ProfileUpdateRequest>({
   fullName: '',
   phone: '',
-  avatarUrl: '',
+  email: '',
   currentCity: '',
   personalWebsite: '',
   githubUrl: '',
@@ -66,7 +62,7 @@ async function loadProfile(): Promise<void> {
     const profile = await getProfile()
     form.fullName = profile.fullName ?? ''
     form.phone = profile.phone ?? ''
-    form.avatarUrl = profile.avatarUrl ?? ''
+    form.email = profile.email ?? ''
     form.currentCity = profile.currentCity ?? ''
     form.personalWebsite = profile.personalWebsite ?? ''
     form.githubUrl = profile.githubUrl ?? ''
@@ -83,7 +79,7 @@ async function saveProfile(): Promise<void> {
     await updateProfile({
       fullName: form.fullName?.trim(),
       phone: form.phone?.trim(),
-      avatarUrl: form.avatarUrl?.trim(),
+      email: form.email?.trim(),
       currentCity: form.currentCity?.trim(),
       personalWebsite: form.personalWebsite?.trim(),
       githubUrl: form.githubUrl?.trim(),
@@ -106,6 +102,5 @@ onMounted(loadProfile)
 .page-heading p { margin: 6px 0 0; color: var(--el-text-color-secondary); font-size: 13px; }
 .profile-form { padding: 8px 4px 0; }
 .profile-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 24px; }
-.avatar-preview { display: flex; align-items: center; gap: 16px; margin-top: 8px; color: var(--el-text-color-secondary); }
 @media (max-width: 640px) { .profile-form-grid { grid-template-columns: 1fr; } .page-heading { align-items: flex-start; flex-direction: column; } }
 </style>

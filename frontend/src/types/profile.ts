@@ -9,7 +9,7 @@ export interface UserProfile {
   id?: number
   fullName: string | null
   phone: string | null
-  avatarUrl: string | null
+  email: string | null
   currentCity: string | null
   personalWebsite: string | null
   githubUrl: string | null
@@ -18,7 +18,7 @@ export interface UserProfile {
 export interface ProfileUpdateRequest {
   fullName?: string
   phone?: string
-  avatarUrl?: string
+  email?: string
   currentCity?: string
   personalWebsite?: string
   githubUrl?: string

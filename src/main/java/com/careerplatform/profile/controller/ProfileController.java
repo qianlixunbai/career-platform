@@ -28,7 +28,7 @@ public class ProfileController {
     }
 
     private ProfileResponse toResponse(UserProfile profile) {
-        return new ProfileResponse(profile.getId(), profile.getFullName(), profile.getPhone(), profile.getAvatarUrl(),
+        return new ProfileResponse(profile.getId(), profile.getFullName(), profile.getPhone(), profile.getEmail(),
                 profile.getCurrentCity(), profile.getPersonalWebsite(), profile.getGithubUrl());
     }
 }
