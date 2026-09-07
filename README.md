@@ -39,6 +39,8 @@
 
 ## 当前状态
 
+**Milestone 7 / P2-A RAG：required gates 已通过，状态为 `GO — READY FOR CHECKPOINT`。** 现有 LearningMaterial 已扩展真实 PDF/DOCX 上传、MySQL 原件存储、Chunk/Embedding、当前用户当前计划范围的语义检索和可信来源问答；入口位于学习计划详情的“学习资料”。正式完成 AI 功能为 4 个，包含 M7 RAG；Real Provider Gate 已获外部 TechLead 接受，最终 GO 尚待确认。当前改动仍未 commit/push。证据及配置见 [M7 Closing](docs/M7_RAG_CLOSING_VERIFICATION.md)。下列 M2～M6C 内容保留各里程碑历史记录。
+
 Milestone 2 已冻结并以 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e` 固化；Milestone 3 Learning 已冻结并以 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a` 固化。两者均已通过既有真实 MySQL 集成测试。
 
 Milestone 4 Resume 后端已完成并冻结，包含 Resume、ResumeVersion、ResumeContentItem 的归属校验、草稿编辑、生成快照、定稿、复制和状态保护。005 已通过 login-path 幂等应用，真实数据库确认有 22 张 `BASE TABLE`。编译通过；定向 `DatabaseSchemaIntegrationTests` 3 + `ResumeIntegrationTests` 9 共 12 项，以及全量 Maven test 81 项均为 Failures 0、Errors 0、Skipped 0。源码扫描得到 18 个 `@RestController`；MyBatis-Plus Mapper 已显式注册。M4 已以 checkpoint `c61756f539aefc367473dd56ca1dcb2384143f56` 固化并 push 到 `main`。
@@ -53,7 +55,7 @@ Milestone 6B — AI Learning Planning + Weekly Review 已完成、冻结，状�
 
 详细完成度见 [开发状态](docs/DEVELOPMENT_STATUS.md)。
 
-Milestone 6C — AI Job Discovery 已实现并通过 Final Closing Verification，是第 3 个正式 AI 功能；当前状态为 `FROZEN / COMMITTED / PUSHED`，M6C checkpoint 为 `915acc0d02ac173877ae49b10fff96243b236cd5`，已 commit 并 push 到 `origin/main`。它基于职业目标和用户技能，通过专用 Spring AI Tool Calling gateway 调用 Tavily Search；页面分开展示来源事实、待核实字段和 AI 匹配建议。发现过程不写业务数据库，只有用户选择已有公司、确认岗位类型并显式保存后才进入现有 `CareerService.createJob()`。候选有效期 15 分钟，不新增表或 migration。M6A/M6B 的 no-tools 路径保持独立。M6C Closing 阶段的 deterministic 102 项、M6A/M6B regression 31 项、真实 MySQL 集成 3 项、前端 typecheck/build 均通过；Real Provider Gate 为 `PASS`，Smoke #4 返回 3 个候选、searchCalls=2，Job/Company 均 0→0。详情见 [M6C Closing Verification](docs/M6C_CLOSING_VERIFICATION.md)。当前机械统计为 28 张业务表、25 个精确 @RestController、21 个 routed pages、3 个已完成 AI 功能；三个正式 AI 功能为 JD Structured Parse、AI Learning Planning + Weekly Review、AI Job Discovery / Tool Calling；RAG 尚未实现。原 Closing 的 `READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED` 是 pre-checkpoint historical decision，不代表当前状态。
+Milestone 6C — AI Job Discovery 已实现并通过 Final Closing Verification，是第 3 个正式 AI 功能；当前状态为 `FROZEN / COMMITTED / PUSHED`，M6C checkpoint 为 `915acc0d02ac173877ae49b10fff96243b236cd5`，已 commit 并 push 到 `origin/main`。它基于职业目标和用户技能，通过专用 Spring AI Tool Calling gateway 调用 Tavily Search；页面分开展示来源事实、待核实字段和 AI 匹配建议。发现过程不写业务数据库，只有用户选择已有公司、确认岗位类型并显式保存后才进入现有 `CareerService.createJob()`。候选有效期 15 分钟，不新增表或 migration。M6A/M6B 的 no-tools 路径保持独立。M6C Closing 阶段的 deterministic 102 项、M6A/M6B regression 31 项、真实 MySQL 集成 3 项、前端 typecheck/build 均通过；Real Provider Gate 为 `PASS`，Smoke #4 返回 3 个候选、searchCalls=2，Job/Company 均 0→0。详情见 [M6C Closing Verification](docs/M6C_CLOSING_VERIFICATION.md)。以下是 M6C checkpoint 的历史快照：28 张业务表、25 个精确 @RestController、21 个 routed pages、3 个已完成 AI 功能；当时 RAG 尚未实现。当前 M7 post-checkpoint 机械统计为 29 张表、26 个精确 @RestController、21 个 routed pages、4 个正式 AI 功能。原 Closing 的 `READY FOR CHECKPOINT / NOT COMMITTED / NOT PUSHED` 是 pre-checkpoint historical decision，不代表当前状态。
 
 ## 本地运行前提
 
@@ -73,6 +75,10 @@ Milestone 6C — AI Job Discovery 已实现并通过 Final Closing Verification�
    - `TAVILY_API_KEY`：仅从用户本地环境或 IDEA Run Configuration 提供；无需且禁止在聊天中发送。搜索 endpoint 固定为官方 `https://api.tavily.com/search`，不支持任意 URL 配置。
    - DeepSeek endpoint 与生产模型在应用配置中固定为 `https://api.deepseek.com` 和 `deepseek-v4-flash`；不支持 `AI_BASE_URL`、`AI_MODEL` 或客户端动态覆盖。
 5. 执行 `./mvnw spring-boot:run`；Windows PowerShell 可执行 `.\mvnw.cmd spring-boot:run`。
+
+M7 代码运行前需在备份和确认当前数据库结构后**执行一次** [`sql/007_add_learning_material_rag.sql`](sql/007_add_learning_material_rag.sql)。007 含 ALTER TABLE，不可像早期 CREATE-only 脚本一样直接重复执行；本轮已由 MySQL Gate 验证执行结果，详见 M7 Closing。原文件保存在既有 MySQL，单份最多 5 MiB，每计划最多 20 份、100 MiB；不需要额外存储服务或向量数据库。
+
+RAG 的 Embedding 与 DeepSeek Chat 分开配置：`EMBEDDING_ENABLED=true`、`EMBEDDING_ENDPOINT`（完整 HTTPS embeddings endpoint）、`EMBEDDING_MODEL`、`EMBEDDING_API_KEY`；可选 `EMBEDDING_VERSION`（默认 1，服务端模型修订变化时更新并重新索引）。只支持 OpenAI-compatible 的 float embedding 响应；没有默认 Provider/模型，不假设 DeepSeek 提供 Embedding。Secret 只在本地环境或 IDEA Run Configuration 提供；不要发到聊天。缺少配置时传统功能仍可使用，问答显示不可用。Chat 继续使用原有 AI 配置与硬锁 `deepseek-v4-flash`。
 
 任何真实数据库密码、Token 或 API Key 都不得提交到 Git。文档和示例中也只应使用环境变量名或占位符。
 

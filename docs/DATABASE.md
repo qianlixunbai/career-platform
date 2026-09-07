@@ -1,5 +1,17 @@
 # 数据库说明
 
+## M7 / P2-A 增量（MySQL Gate PASS）
+
+新增一次性迁移 `sql/007_add_learning_material_rag.sql`：扩展 learning_material 的原件 BLOB、文件名/MIME/大小、索引状态、Chunk 数与 Embedding 身份；新增 `learning_material_chunk` 技术表。当前源码 DDL 为 28 张既有业务表 + 1 张 RAG 技术表，共 29 张；用户 IDEA 最新 MySQL Gate 已验证 007 结构和事务行为。
+
+Chunk 保存 user_id、material_id、chunk_index、text、location_label、可空 page_number、JSON embedding、embedding_identity、created_at。`UNIQUE(material_id,chunk_index)` 保证文档顺序唯一；复合 FK `(material_id,user_id) → learning_material(id,user_id) ON DELETE CASCADE` 阻止跨 owner 子记录，并让原有 Material/Plan 删除事务清理 Chunk。其他既有 Learning FK 不变。
+
+上传的 metadata 与原件同事务提交，索引全部 Chunk 与 READY 同事务提交。文件不支持原地替换，重新索引使用数据库原件；失败不提交半套 READY；已有索引重建失败保留旧数据。删除直接移除同一数据库中的 BLOB，不存在待删除磁盘文件。普通列表查询通过 `@TableField(select=false)` 排除 BLOB，原件仅通过显式 owner-scoped SELECT 读取。
+
+007 的 ALTER TABLE 只执行一次；勿盲目重复执行，本轮最新 Gate 后未重复执行 007。执行及集成证据见 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)，下方 M6 与更早规模为历史证据。
+
+本轮用户 IDEA 实测已由主控读取 XML 核验：最新指定套件共 30 项且全绿，`DatabaseSchemaIntegrationTests` 5、`LearningCoreIntegrationTests` 11、`LearningSupportIntegrationTests` 6、`RagMaterialIntegrationTests` 8，Failures/Errors/Skipped 均为 0，`BUILD SUCCESS` 46.750s，证据为 `target/m7-mysql-confirmed-result.json`。第一次 30 项结果中旧全局表数 expected 28/actual 29 的 1 failure 继续保留于 `target/m7-mysql-first-result.json`；机械确认新增第 29 张表为 `learning_material_chunk` 后修正计数与方法名，未修改数据库迁就旧断言。
+
 ## 已验证基线
 
 - MySQL，数据库 `career_platform`
@@ -7,7 +19,7 @@
 - `BIGINT AUTO_INCREMENT` 主键
 - 数据库密码只从 `${DB_PASSWORD}` 读取
 
-截至 2026-09-04，真实 MySQL `information_schema` 确认有 28 张 `BASE TABLE`：原有 22 张加 Milestone 5B Application 的 6 张表。006 已通过 login-path 连续应用两次并验证幂等；Application 定向集成测试 8 项与 Schema 测试 4 项共 12 项，以及全量 Maven test 90 项，均为 Failures 0、Errors 0、Skipped 0。全程不使用 H2。
+历史基线（截至 2026-09-04）：真实 MySQL `information_schema` 确认有 28 张 `BASE TABLE`，即原有 22 张加 Milestone 5B Application 的 6 张表。006 已通过 login-path 连续应用两次并验证幂等；Application 定向集成测试 8 项与 Schema 测试 4 项共 12 项，以及全量 Maven test 90 项，均为 Failures 0、Errors 0、Skipped 0。全程不使用 H2。M7 当前 29 张 DDL 与最新 30 项 Gate 结果见上文。
 
 Milestone 6A 不新增 migration 或业务表。JD AI parse candidate 只存在于响应和前端审核状态；用户确认后仍写入既有 `job_requirement`，且不会自动删除/覆盖人工条目。因此业务表数量保持 28。通过 IDEA 运行配置启动的 localhost application 已完成真实 MySQL business smoke，确认 parse 不写要求、confirm 才追加要求；最终真实 MySQL full Maven 为 132 项、Failures 0、Errors 0、Skipped 0。
 
@@ -33,6 +45,7 @@ M6C 不增加 migration 或表，数据库结构继续复用现有 Job/Company�
 | `sql/004_create_learning_tables.sql` | Learning 6 表 | 已应用并验证 |
 | `sql/005_create_resume_tables.sql` | Resume 3 表 | 已通过 login-path 幂等应用并验证 |
 | `sql/006_create_application_tables.sql` | Application Management 6 表 | 已通过 login-path 连续应用两次并验证 |
+| `sql/007_add_learning_material_rag.sql` | LearningMaterial 原件字段与 `learning_material_chunk` | 已执行一次并由 M7 MySQL Gate 验证 |
 
 脚本均使用 `CREATE TABLE IF NOT EXISTS`，不会删除表或业务数据。已有历史脚本没有被覆盖。
 
@@ -75,6 +88,14 @@ M6C 不增加 migration 或表，数据库结构继续复用现有 Job/Company�
 | `learning_material` | Plan 1 → n；可选 Task | `(plan_id, user_id)`、`(task_id, plan_id, user_id)` 索引；`source_url VARCHAR(2048) NULL`；Plan/Task owner 复合 FK |
 
 Learning 共 13 个外键，全部为默认 `RESTRICT`（MySQL metadata 的 `NO ACTION`）：各表直接保存 `user_id`，并通过 Plan/Task owner-aware 复合外键阻止跨用户或错误父子组合。Service 负责校验 owner、日期和删除顺序，不依赖数据库异常替代业务校验。
+
+### M7 RAG 技术表
+
+| 表 | 归属 / 关系 | 关键约束与索引 |
+|---|---|---|
+| `learning_material_chunk` | LearningMaterial 1 → n | `UNIQUE(material_id, chunk_index)`；`(material_id,user_id)` 复合 FK → `learning_material(id,user_id)`，`ON DELETE CASCADE`；保存位置、可空页码、原文、JSON embedding 与 identity |
+
+该技术表使源码 DDL 总数由 M6 历史的 28 张增加到 29 张。原件 BLOB、索引状态与 Chunk 事务行为由最新 MySQL Gate 验证；普通资料列表不读取 BLOB，删除由数据库级联清理 Chunk。
 
 Learning 共 5 个非主键 UNIQUE：`uk_learning_plan_user_week_start`、`uk_learning_plan_id_user_id`、`uk_learning_task_id_user_id`、`uk_learning_task_id_plan_id_user_id`、`uk_weekly_review_plan_id`。其中 owner-aware 目标键用于复合 FK，Review 唯一键保证一个 Plan 至多一份复盘。
 

@@ -242,13 +242,43 @@ export interface LearningMaterial {
   title: string
   sourceUrl?: string | null
   description?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+  indexStatus?: LearningMaterialIndexStatus
+  chunkCount?: number | null
+  /** Server-owned embedding identity; the UI intentionally does not display it. */
+  embeddingIdentity?: string | null
   createdAt?: string
   updatedAt?: string
 }
+
+export type LearningMaterialIndexStatus = 'METADATA' | 'UPLOADED' | 'READY' | 'FAILED'
 
 export interface LearningMaterialRequest {
   taskId?: number
   title: string
   sourceUrl?: string
   description?: string
+}
+
+export interface RagStatus {
+  available: boolean
+}
+
+export interface RagCitation {
+  citationKey: string | null
+  materialId: number
+  materialName: string
+  chunkId: number
+  locationLabel: string
+  pageNumber: number | null
+  originalExcerpt: string
+}
+
+export interface LearningPlanRagQueryResponse {
+  answer: string
+  citations: RagCitation[]
+  warnings: string[]
+  evidenceInsufficient: boolean
 }

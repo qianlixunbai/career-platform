@@ -22,6 +22,21 @@ public class GlobalExceptionHandler {
     private static final org.slf4j.Logger log =
             org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleUploadTooLarge() {
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "文件不能超过5 MiB");
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidMultipart() {
+        return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "文件上传请求无效");
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingUpload() {
+        return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "请选择上传文件");
+    }
+
     @ExceptionHandler(AiServiceUnavailableException.class)
     public ResponseEntity<ApiErrorResponse> handleAiServiceUnavailable(AiServiceUnavailableException exception) {
         return error(HttpStatus.SERVICE_UNAVAILABLE, "AI_SERVICE_UNAVAILABLE", exception.getMessage());

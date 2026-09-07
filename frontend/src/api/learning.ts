@@ -10,8 +10,11 @@ import type {
   LearningPlanAiSuggestionRequest,
   LearningPlanAiSuggestionResponse,
   LearningPlanRequest,
+  LearningPlanRagQueryResponse,
   LearningTask,
   LearningTaskRequest,
+  RagCitation,
+  RagStatus,
   StudyRecord,
   StudyRecordRequest,
   WeeklyReview,
@@ -208,4 +211,71 @@ export async function updateLearningMaterial(
 
 export async function deleteLearningMaterial(planId: number, materialId: number): Promise<void> {
   await client.delete(`/v1/learning-plans/${planId}/materials/${materialId}`)
+}
+
+/** Upload and synchronously index a PDF/DOCX for the current learning plan. */
+export async function uploadLearningMaterial(
+  planId: number,
+  file: File,
+  taskId?: number,
+): Promise<LearningMaterial> {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (taskId) formData.append('taskId', String(taskId))
+  const response = await client.post<LearningMaterial>(
+    `/v1/learning-plans/${planId}/materials/upload`,
+    formData,
+    {
+      timeout: 120_000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    },
+  )
+  return response.data
+}
+
+/** Re-index an already uploaded material without changing its metadata. */
+export async function reindexLearningMaterial(planId: number, materialId: number): Promise<LearningMaterial> {
+  const response = await client.post<LearningMaterial>(
+    `/v1/learning-plans/${planId}/materials/${materialId}/reindex`,
+    undefined,
+    { timeout: 120_000 },
+  )
+  return response.data
+}
+
+/** Fetch the owner-checked original file through the authenticated API client. */
+export async function getLearningMaterialFile(planId: number, materialId: number): Promise<Blob> {
+  const response = await client.get<Blob>(
+    `/v1/learning-plans/${planId}/materials/${materialId}/file`,
+    { responseType: 'blob' },
+  )
+  return response.data
+}
+
+export async function getLearningMaterialChunk(
+  planId: number,
+  materialId: number,
+  chunkId: number,
+): Promise<RagCitation> {
+  const response = await client.get<RagCitation>(
+    `/v1/learning-plans/${planId}/materials/${materialId}/chunks/${chunkId}`,
+  )
+  return response.data
+}
+
+export async function getRagStatus(planId: number): Promise<RagStatus> {
+  const response = await client.get<RagStatus>(`/v1/learning-plans/${planId}/materials/rag/status`)
+  return response.data
+}
+
+export async function queryLearningPlanRag(
+  planId: number,
+  question: string,
+): Promise<LearningPlanRagQueryResponse> {
+  const response = await client.post<LearningPlanRagQueryResponse>(
+    `/v1/learning-plans/${planId}/materials/rag/query`,
+    { question },
+    { timeout: 120_000 },
+  )
+  return response.data
 }

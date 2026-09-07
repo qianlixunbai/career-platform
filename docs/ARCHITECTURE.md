@@ -1,12 +1,25 @@
 # 系统架构
 
+## M7 / P2-A 当前增量（GO — READY FOR CHECKPOINT）
+
+- 复用 LearningMaterial 的 Plan/可选 Task 归属关系；原有链接资料继续作为 METADATA 使用。原件使用 `learning_material.file_content MEDIUMBLOB`，普通 Mapper 查询不读取 BLOB，DTO 永不返回原件 bytes。选择 MySQL 存储是为了在现有删除事务中原子删除原件与资料，并由 owner-aware FK 级联清理 Chunk，无文件路径或双写清理队列。
+- Parser：PDFBox 3.0.8 读取 PDF 实际页码；DOCX 采用 JDK ZIP + StAX 读取正文段落（包括表格段落），无稳定页码，不进行 OCR、页码推算或外部关系抓取。限制 5 MiB 文件、100 PDF 页、10 MiB ZIP 展开、200 ZIP entries、100000 文本字符、1000 字符/Chunk、128 Chunk/文档。PDFBox 依据：[Apache 官方发布](https://pdfbox.apache.org/download)。
+- 上传：owner 校验 → 校验/解析 → 短事务写原件与 UPLOADED → 事务外 Embedding → 短事务替换 Chunk 并设 READY；失败保留原件供重试，首次索引失败为 FAILED，已有 READY 的重建失败保留旧索引。索引和删除均先锁 Plan，再操作 Material；成功重建生成新 Chunk ID。每计划最多 20 份文件、100 MiB、1000 个 READY Chunk。
+- `EmbeddingGateway` 是独立生产边界，使用显式配置的 OpenAI-compatible HTTPS endpoint/model；JDK transport 不跟随跳转、不重试、每批最多 16 段、完整响应最多 1 MiB、单次请求 30 秒。endpoint/model/version 的 SHA-256 作为向量身份，客户端不能选择。零向量、非法数值、维度不一致均拒绝；无配置不创建全局 EmbeddingModel，也不影响传统系统启动。
+- `RagService` 先验证当前 Plan owner，通过 SQL JOIN 限定 user/plan/READY/embedding identity，再在 Java 计算 cosine。最多读取 1000 行，索引发布事务限制每计划 READY Chunk 总数不超过 1000；Top-K 固定 4，threshold=0.55，证据上下文最多 4000 字符。此为 course-scale 实现，不适合无限文档库；不引入外部 vector DB。
+- 模型仅收到不可信问题、chunk 文本和本次 c1～c4 keys。`RagChatGateway` 使用独立 Spring AI Flash 实例、no-tools、retry=0，并复用已有固定 endpoint model factory；不会修改 M6A/M6B gateway 或注册全局工具。BeanOutputConverter 只生成 schema，JSON 解析走严格类型校验并禁止原文日志泄露。
+- 模型只返回 answer/citationKeys/evidenceInsufficient。Java 从本次检索集重建 materialId/name、chunkId、位置、页码和原文，未知 key 返回安全 AI_INVALID_RESPONSE。无命中不调用 Chat；有相似片段但没有问题所需事实时要求模型返回不足依据。来源可追溯不等同于自动证明每句话语义正确，阈值和 Prompt 不能替代模型质量评估。
+- 返回前再次 owner-check 并确认 Chunk 仍存在；原文查看、原件下载、删除、重建均 owner-scoped。问答不写任何业务数据。所有文档/问题均为 UNTRUSTED DATA，没有 Tool Calling、自动计划写入或 Pro fallback。
+
+当前门禁、限制和证据见 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。Real Provider Gate 已获外部 TechLead 接受，最终 GO 尚待确认；当前仍未 commit/push。以下 M6C/M6B/M6A 段落中的“未实现 RAG”描述其历史范围。
+
 ## 文档状态
 
-本文记录截至 2026-09-06 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`，功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，已 push 到 `origin/main`。Closing 历史证据：用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。以上为 M6B checkpoint 历史记录；当前 M6C Closing 的实际重跑结果见下文及专项报告。
+本文记录截至 2026-09-07 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`，功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，已 push 到 `origin/main`。Closing 历史证据：用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。以上为 M6B checkpoint 历史记录；M7 当前门禁、证据与未提交状态见专项报告。
 
 ## Milestone 6C — Job Discovery 架构
 
-M6C 在独立路径引入 Spring AI Tool Calling；下文 M6A/M6B 的 no-tools 说明继续适用于原有两个功能。M6C 当前状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `915acc0d02ac173877ae49b10fff96243b236cd5`。Real Provider Gate 为 `PASS`；RAG 尚未实现。详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。
+M6C 在独立路径引入 Spring AI Tool Calling；下文 M6A/M6B 的 no-tools 说明继续适用于原有两个功能。M6C 当前状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `915acc0d02ac173877ae49b10fff96243b236cd5`。在 M6C checkpoint 历史范围内 RAG 尚未实现；其 Real Provider Gate 为 `PASS`。详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。
 
 ```text
 CareerService.getGoal(owner) + ProfileService.listUserSkills(owner)
@@ -80,11 +93,11 @@ com.careerplatform
 
 当前 backend package 实际包含 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning`、`resume`、`application` 和 `ai`。
 
-当前源码扫描实际包含 25 个精确 `@RestController`（不含 `@RestControllerAdvice`）；M6A 的 `JdAiController` 承载 JD parse/confirm，M6B 的 `LearningAiController` 承载 Plan/Review suggestion 与 Plan confirm，M6C 的 `JobDiscoveryController` 承载 Job Discovery/confirm。Controller 不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
+当前源码扫描实际包含 26 个精确 `@RestController`（不含 `@RestControllerAdvice`）；M6A 的 `JdAiController` 承载 JD parse/confirm，M6B 的 `LearningAiController` 承载 Plan/Review suggestion 与 Plan confirm，M6C 的 `JobDiscoveryController` 承载 Job Discovery/confirm，M7 的 `RagController` 承载 RAG status/query。Controller 不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
 
 ## AI Foundation 与结构化候选边界
 
-`com.careerplatform.ai` 提供最小 AI 基础设施：配置、provider-neutral `AiChatGateway`、Spring AI `ChatClient` 实现、typed DTO、统一异常以及 JD/Learning 专用 service/controller。生产依赖使用 Spring AI BOM `1.1.8` 与 `spring-ai-starter-model-openai`；Spring Boot 保持 `3.5.14`。DeepSeek Official API 通过 OpenAI-compatible adapter 接入；endpoint 固定为 `https://api.deepseek.com`，生产模型硬锁为 `deepseek-v4-flash`。维护中的全局开关、adapter 与 key 分别来自 `AI_CHAT_ENABLED`、`AI_CHAT_PROVIDER`、`AI_API_KEY`；旧 `AI_JD_PARSE_ENABLED` 只在新开关缺失时作为兼容 fallback。客户端、`AI_MODEL`、runtime options 和自动 fallback 都不能改变模型。Gateway 在每次 Prompt 上再次施加内部 Flash 常量并禁用 tool choice/internal tool execution。
+`com.careerplatform.ai` 提供最小 AI 基础设施：配置、provider-neutral `AiChatGateway`、独立 Embedding/RAG gateway、Spring AI `ChatClient` 实现、typed DTO、统一异常以及 JD/Learning/RAG 专用 service/controller。生产依赖使用 Spring AI BOM `1.1.8` 与 `spring-ai-starter-model-openai`；Spring Boot 保持 `3.5.14`。DeepSeek Official API 通过 OpenAI-compatible adapter 接入；endpoint 固定为 `https://api.deepseek.com`，生产 Chat 模型硬锁为 `deepseek-v4-flash`，无 fallback。维护中的全局开关、adapter 与 key 分别来自 `AI_CHAT_ENABLED`、`AI_CHAT_PROVIDER`、`AI_API_KEY`；旧 `AI_JD_PARSE_ENABLED` 只在新开关缺失时作为兼容 fallback。客户端、`AI_MODEL`、runtime options 和自动 fallback 都不能改变模型。Gateway 在每次 Prompt 上再次施加内部 Flash 常量并禁用 tool choice/internal tool execution。
 
 所有 AI 模型默认 `none`，非 Chat 模型固定禁用；`AI_CHAT_ENABLED` 默认 `false`。无 provider 或 API key 时 gateway 返回 `AI_SERVICE_UNAVAILABLE`，不会阻止 Spring Context 或传统业务启动。Provider failure 映射为 503 `AI_PROVIDER_UNAVAILABLE`，structured output/conversion failure 映射为 502 `AI_INVALID_RESPONSE`，响应不透出 provider 原始认证错误、secret 或 stack trace。
 
@@ -125,7 +138,7 @@ parse 返回 ephemeral candidate，绝不修改 `job_requirement`。只有用户
 
 ## Learning 与 AI Learning 边界
 
-Learning 的传统业务与 AI 候选功能共享既有六个资源；M6B 不增加 AI 表、RAG、文件上传、向量化或新页面。资源关系固定为：
+Learning 的传统业务与 AI 候选功能共享既有六个资源；M6B 历史上不增加 AI 表、RAG、文件上传、向量化或新页面。M7 在同一 `LearningMaterial` 归属边界内增加文件、Chunk、Embedding 与 RAG 问答，不新增 routed page。资源关系固定为：
 
 - `LearningPlan 1 -> n LearningTask`；`LearningTask 1 -> n StudyRecord`。
 - `LearningPlan 1 -> 0..1 WeeklyReview`，通过 `PUT /api/v1/learning-plans/{planId}/review` 创建或更新同一条复盘。
@@ -168,4 +181,4 @@ Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删�
 
 ## 后续规划边界
 
-JD Structured Parse 是第 1 个正式 AI 功能，AI Learning Planning + Weekly Review 是第 2 个，M6C AI Job Discovery / Tool Calling 是第 3 个。AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、通用 Agent 和 AI Evaluation 仍未实现。后续 AI 输出继续遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
+JD Structured Parse 是第 1 个正式 AI 功能，AI Learning Planning + Weekly Review 是第 2 个，M6C AI Job Discovery / Tool Calling 是第 3 个，M7 RAG 是第 4 个。AI 面试与求职复盘、Resume + JD matching、通用 Agent 和 AI Evaluation 仍未实现。RAG 问答保持 read-only，来源由 Java 从本次检索集重建；其余需要写入的 AI 输出继续遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。

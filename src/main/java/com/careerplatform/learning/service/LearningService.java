@@ -149,7 +149,7 @@ public class LearningService {
 
     @Transactional
     public void deletePlan(Long planId, Long userId) {
-        requireOwnedPlan(planId, userId);
+        requireOwnedPlanForUpdate(planId, userId);
         List<LearningTask> tasks = learningTaskMapper.selectList(new LambdaQueryWrapper<LearningTask>()
                 .eq(LearningTask::getPlanId, planId)
                 .eq(LearningTask::getUserId, userId));
@@ -416,7 +416,7 @@ public class LearningService {
 
     @Transactional
     public void deleteMaterial(Long planId, Long materialId, Long userId) {
-        requireOwnedPlan(planId, userId);
+        requireOwnedPlanForUpdate(planId, userId);
         requireOwnedMaterial(planId, materialId, userId);
         deleteOrNotFound(learningMaterialMapper.delete(new LambdaQueryWrapper<LearningMaterial>()
                 .eq(LearningMaterial::getId, materialId)

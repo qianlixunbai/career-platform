@@ -1,8 +1,14 @@
 # 项目规划
 
+## 当前执行：Milestone 7 / P2-A RAG
+
+本轮实现学习资料真实文件 → 解析 → Chunk → 独立 Embedding → 当前用户/计划 Top-K → DeepSeek Flash → Java 可信引用 → 来源片段/原件查看。复用 MySQL 和 LearningMaterial，不引入向量数据库、全量文档 Prompt、独立 Chat 页面或自动业务写入。PDF 保留真实页码，DOCX 保留段落位置。
+
+deterministic、真实 MySQL、frontend/browser、最小真实 Embedding + Flash smoke 与安全/回归门禁均已通过，RAG 已计为第 4 个正式 AI 功能。Real Provider Gate 已获外部 TechLead 接受，最终 GO 尚待确认；当前仍不 commit/push。当前验收证据见 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。下方 M6C 的状态和数量为该 checkpoint 历史基线。
+
 ## 文档定位与基线
 
-### 当前状态：Milestone 6C 已完成
+### M6C checkpoint 历史基线
 
 本里程碑已完成 AI Job Discovery，作为 AI 功能 #3 的验收目标：职业目标与技能 → Spring AI 调用只读 Tavily Search Tool → 原始搜索结果与 opaque resultKey → AI 排序建议 → Java 来源重建 → 用户检查 → 显式确认 → 现有 Job Service。该受限 Tool Calling 用例提前进入 M6C；通用 Agent、RAG、搜索历史和 crawler 仍不在本轮范围。
 
@@ -10,7 +16,7 @@ M6C 不增加业务表或 migration；独立岗位发现页面区分临时候选
 
 模型固定 DeepSeek Flash，无 Pro、动态模型、fallback 或自动重试。一次流程通常需要两次模型 HTTP 往返、最多三次，搜索最多两次；离线测试使用 fake；独立 Smoke #4 已通过，本轮 Closing 不追加真实 Provider 调用。M6A/M6B 的 no-tools contract 保持独立。
 
-M6A/M6B 保留既有 checkpoint；M6C 已通过 [Final Closing](M6C_CLOSING_VERIFICATION.md)，正式完成 AI 功能达到 3 个，满足课程最低数量。M6C 当前状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `915acc0d02ac173877ae49b10fff96243b236cd5`，Real Provider Gate 为 `PASS`。RAG 仍未实现，后续按 P2 规划评估。
+M6A/M6B 保留既有 checkpoint；M6C 已通过 [Final Closing](M6C_CLOSING_VERIFICATION.md)，在其 checkpoint 范围内正式完成 AI 功能达到 3 个，满足课程最低数量。M6C 当前状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `915acc0d02ac173877ae49b10fff96243b236cd5`，Real Provider Gate 为 `PASS`。RAG 在 M6C checkpoint 时尚未实现，现已由 M7 完成。
 
 ### 既有规划基线
 
@@ -177,13 +183,13 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 2. AI 面试 / 求职复盘
 3. 简历 + JD 匹配分析
 
-与 P0 的 JD 解析合计至少四个规划 AI 功能；当前已完成 JD Structured Parse、AI Learning Planning + Weekly Review、AI Job Discovery / Tool Calling，共 3 个正式 AI 功能，已达到课程最低要求。
+与 P0 的 JD 解析合计至少四个规划 AI 功能；当前已完成 JD Structured Parse、AI Learning Planning + Weekly Review、AI Job Discovery / Tool Calling 和 M7 RAG，共 4 个正式 AI 功能，已达到并超过课程最低要求。
 
 ### P2：技术深化版
 
 按以下优先级推进：
 
-1. RAG 学习资料问答 + 来源 / 原文追溯：P2 内的固定必做目标。
+1. RAG 学习资料问答 + 来源 / 原文追溯：P2 内的固定必做目标，已由 M7 完成并通过 required gates。
 2. 通用 Agent + Tool Calling：第二优先级；受限的 M6C Job Discovery Tool Calling 已完成，但通用 Agent 尚未实现。
 3. AI Evaluation / A-B 实验：有余力再做。
 
@@ -191,7 +197,7 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 
 ## 预计数据表
 
-初始设计基线规划约 28 张核心业务表；P2 可能增加技术表。当前真实状态为 28 张业务表，已经落地 `app_user`、共享基础档案、职业探索、Learning、Resume 和 Application Management。M6A candidate 是 ephemeral suggestion，确认后写既有 `job_requirement`，因此没有新增 AI 技术表或 migration。
+初始设计基线规划约 28 张核心业务表；P2 可能增加技术表。当前源码 DDL 为 29 张表：28 张既有业务表加 M7 的 `learning_material_chunk` 技术表。M6A candidate 是 ephemeral suggestion，确认后写既有 `job_requirement`，因此 M6A 没有新增 AI 技术表或 migration。
 
 | 模块 | 候选表 |
 |---|---|
@@ -200,7 +206,7 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 | 学习提升 | `learning_plan`、`learning_task`、`study_record`、`weekly_review`、`learning_note`、`learning_material` |
 | 简历管理 | `resume`、`resume_version`、`resume_content_item` |
 | 求职过程 | `application`、`application_stage_history`、`assessment`、`interview`、`offer`、`final_review` |
-| P2 技术数据（可能增加） | `document_chunk` 等检索相关结构 |
+| P2 技术数据 | `learning_material_chunk`（M7 已落地）；后续其他检索结构按需评估 |
 
 除 P2 技术数据外，上述核心业务表均已建表；P2 候选表仍只表示规划方向。
 
@@ -208,13 +214,13 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 
 课程最终要求至少 18 个 Controller。初始设计基线按业务职责规划的 Controller 数量超过 18 个，覆盖身份与基础档案、职业探索、学习、简历、求职流程和 AI 能力。
 
-Controller 不机械地与表一一对应，最终会按用例和 API 职责合理合并或拆分。当前仓库中实际有 **25** 个精确 `@RestController`（不计 Advice），M6A 新增 `JdAiController`，M6B 新增 `LearningAiController`，M6C 新增 `JobDiscoveryController`；课程最低数量指标已达到。
+Controller 不机械地与表一一对应，最终会按用例和 API 职责合理合并或拆分。当前仓库中实际有 **26** 个精确 `@RestController`（不计 Advice），M6A 新增 `JdAiController`，M6B 新增 `LearningAiController`，M6C 新增 `JobDiscoveryController`，M7 新增 `RagController`；课程最低数量指标已达到。
 
 ## 预计前端页面
 
 课程最终要求至少 15 个前端页面。初始设计基线预计约 18～20 个主要业务页面，覆盖登录注册、首页、共享档案、技能、职业目标、公司岗位、学习计划与复盘、简历版本、求职申请详情、测评面试、Offer 和最终复盘；P2 再增加 RAG 问答界面。
 
-部分能力可以用 Tab、弹窗或详情区域组合，但最终课程统计方式需要与老师要求保持一致。当前已完成 **21** 个 routed frontend pages，包括 Application 列表、聚合详情页和 M6C Job Discovery；后续 AI 页面按业务需要增加，不再为了数量硬扩张。
+部分能力可以用 Tab、弹窗或详情区域组合，但最终课程统计方式需要与老师要求保持一致。当前已完成 **21** 个 routed frontend pages，包括 Application 列表、聚合详情页和 M6C Job Discovery；M7 RAG 融入学习计划详情 Tab，不新增 route；后续 AI 页面按业务需要增加，不再为了数量硬扩张。
 
 ## 核心演示链路
 
@@ -254,9 +260,9 @@ Controller 不机械地与表一一对应，最终会按用例和 API 职责合�
 
 | 指标 | 课程最终最低要求 | 当前真实完成 | 当前规划 |
 |---|---:|---:|---:|
-| 数据表 | 18 | 28 | 28 张核心业务表，P2 可能增加技术表 |
-| Controller | 18 | 25 | 超过 18 个，按业务职责划分 |
+| 数据表 | 18 | 29 | 28 张既有业务表 + 1 张 M7 RAG 技术表 |
+| Controller | 18 | 26 | 超过 18 个，按业务职责划分 |
 | 前端页面 | 15 | 21 | 21 个 routed view pages，不计 layout/redirect |
-| AI 功能 | 3 | 3 | JD Structured Parse、AI Learning Planning + Weekly Review、AI Job Discovery / Tool Calling |
+| AI 功能 | 3 | 4 | JD Structured Parse、AI Learning Planning + Weekly Review、AI Job Discovery / Tool Calling、M7 RAG |
 
-数据表、精确 @RestController 和 routed view pages 当前分别为 28、25、21，正式完成 AI 功能为 3 个，均满足课程最低数量要求；RAG 仍未实现。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。
+数据表、精确 @RestController 和 routed view pages 当前分别为 29、26、21，正式完成 AI 功能为 4 个，均满足课程最低数量要求；M7 为 `GO — READY FOR CHECKPOINT`，仍未 commit/push，等待外部 TechLead 最终 GO。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。

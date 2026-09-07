@@ -85,6 +85,163 @@
             </div>
           </el-tab-pane>
 
+          <el-tab-pane label="学习资料" name="materials">
+            <div class="section-heading section-heading--wrap">
+              <div>
+                <h3>学习资料</h3>
+                <span class="muted">上传 PDF 或 DOCX 后会同步处理和索引；问答只使用本计划中已就绪的资料。</span>
+              </div>
+              <div class="materials-toolbar">
+                <el-select v-model="uploadTaskId" clearable placeholder="可选关联任务" class="task-select">
+                  <el-option v-for="task in tasks" :key="task.id" :label="task.title" :value="task.id" />
+                </el-select>
+                <el-tag v-if="uploadingMaterial" type="warning">正在上传并处理…</el-tag>
+                <input
+                  ref="fileInputRef"
+                  class="file-input"
+                  type="file"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  @change="handleFileChange"
+                />
+                <el-button type="primary" :loading="uploadingMaterial" @click="openFilePicker">上传 PDF / DOCX</el-button>
+                <el-button @click="openMaterialCreate">新增资料元数据</el-button>
+              </div>
+            </div>
+            <el-alert
+              v-if="materialsError"
+              :title="materialsError"
+              type="error"
+              :closable="false"
+              show-icon
+              class="materials-alert"
+            />
+            <div v-loading="materialsLoading" class="table-wrap materials-wrap">
+              <el-empty v-if="!materialsLoading && materials.length === 0" description="当前计划还没有学习资料，可先上传 PDF / DOCX 或新增资料元数据" />
+              <el-table v-else :data="materials" stripe>
+                <el-table-column prop="title" label="资料" min-width="210" show-overflow-tooltip />
+                <el-table-column label="文件" min-width="190" show-overflow-tooltip>
+                  <template #default="{ row }">
+                    <span>{{ materialFileLabel(row) }}</span>
+                    <span v-if="row.fileSize" class="file-size"> · {{ formatFileSize(row.fileSize) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="索引状态" width="120">
+                  <template #default="{ row }">
+                    <el-tag :type="materialStatusTag(row.indexStatus)">{{ materialStatusLabel(row.indexStatus) }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="Chunks" width="90">
+                  <template #default="{ row }">{{ row.chunkCount ?? '—' }}</template>
+                </el-table-column>
+                <el-table-column label="关联任务" width="170">
+                  <template #default="{ row }">{{ taskLabel(row.taskId) }}</template>
+                </el-table-column>
+                <el-table-column prop="description" label="描述" min-width="220" show-overflow-tooltip />
+                <el-table-column label="操作" width="300" fixed="right">
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click="openMaterialEdit(row)">编辑</el-button>
+                    <el-button link type="primary" :disabled="!row.fileName" @click="downloadMaterial(row)">下载</el-button>
+                    <el-button
+                      v-if="row.fileName && row.indexStatus !== 'READY'"
+                      link
+                      type="warning"
+                      :loading="reindexingMaterialId === row.id"
+                      @click="reindexMaterial(row)"
+                    >
+                      重新索引
+                    </el-button>
+                    <el-button link type="danger" @click="removeMaterial(row)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+
+            <section class="rag-panel">
+              <div class="section-heading section-heading--wrap rag-panel__heading">
+                <div>
+                  <h3>基于本计划学习资料提问</h3>
+                  <span class="muted">回答只基于当前计划中已就绪的资料；问答不会修改计划、任务或资料。</span>
+                </div>
+                <el-tag v-if="ragAvailable === true" type="success">问答服务可用</el-tag>
+              </div>
+              <el-alert
+                v-if="ragStatusLoading"
+                title="正在检查问答服务状态…"
+                type="info"
+                :closable="false"
+                show-icon
+                class="materials-alert"
+              />
+              <el-alert
+                v-else-if="ragAvailable === false"
+                title="问答服务暂时不可用"
+                description="当前仍可以管理和下载学习资料；配置好问答服务后再试。"
+                type="warning"
+                :closable="false"
+                show-icon
+                class="materials-alert"
+              />
+              <el-alert
+                v-else-if="ragAvailable === true && !hasReadyMaterial"
+                title="当前计划还没有已就绪的资料"
+                description="请先上传 PDF / DOCX，并等待索引状态变为“已就绪”。"
+                type="info"
+                :closable="false"
+                show-icon
+                class="materials-alert"
+              />
+              <el-input
+                v-model="ragQuestion"
+                type="textarea"
+                :rows="4"
+                maxlength="1000"
+                show-word-limit
+                resize="vertical"
+                placeholder="例如：本计划资料中如何解释 synchronized 和 ReentrantLock 的区别？"
+                :disabled="ragAvailable === false || ragLoading"
+              />
+              <div class="rag-actions">
+                <span class="muted">问题最多 1000 个字符</span>
+                <el-button type="primary" :loading="ragLoading" :disabled="!canAskRag" @click="askRag">提问</el-button>
+              </div>
+              <el-alert
+                v-if="ragError"
+                :title="ragError"
+                type="error"
+                :closable="false"
+                show-icon
+                class="materials-alert"
+              />
+              <section v-if="ragAnswer || ragEvidenceInsufficient" class="rag-answer">
+                <h4>AI 回答</h4>
+                <p v-if="ragAnswer">{{ ragAnswer }}</p>
+                <el-alert
+                  v-if="ragEvidenceInsufficient"
+                  title="当前学习资料中没有找到足够依据。"
+                  type="info"
+                  :closable="false"
+                  show-icon
+                />
+              </section>
+              <section v-if="ragCitations.length > 0" class="rag-sources">
+                <h4>来源依据</h4>
+                <div v-for="citation in ragCitations" :key="citationKey(citation)" class="rag-citation">
+                  <div class="rag-citation__heading">
+                    <strong>{{ citation.materialName }}</strong>
+                    <span class="muted">{{ citationLocationLabel(citation) }}</span>
+                  </div>
+                  <p>{{ citation.originalExcerpt }}</p>
+                  <el-button link type="primary" @click="openCitation(citation)">查看原文片段</el-button>
+                </div>
+              </section>
+              <el-alert v-if="ragWarnings.length > 0" title="问答提示" type="info" :closable="false" class="materials-alert">
+                <ul class="warning-list">
+                  <li v-for="warning in ragWarnings" :key="warning">{{ warning }}</li>
+                </ul>
+              </el-alert>
+            </section>
+          </el-tab-pane>
+
           <el-tab-pane label="周复盘" name="review">
             <div class="section-heading">
               <div>
@@ -204,6 +361,62 @@
       <template #footer>
         <el-button @click="recordDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="savingRecord" @click="saveRecord">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="materialDialogVisible"
+      :title="editingMaterialId === null ? '新增资料元数据' : '编辑资料元数据'"
+      width="600px"
+      destroy-on-close
+    >
+      <el-form
+        ref="materialFormRef"
+        :model="materialForm"
+        :rules="materialRules"
+        label-position="top"
+        @submit.prevent="saveMaterial"
+      >
+        <el-form-item label="标题" prop="title">
+          <el-input v-model="materialForm.title" maxlength="200" show-word-limit placeholder="例如：Vue 官方响应式 API 文档" />
+        </el-form-item>
+        <el-form-item label="关联任务">
+          <el-select v-model="materialForm.taskId" clearable placeholder="可选" class="full-width">
+            <el-option v-for="task in tasks" :key="task.id" :label="task.title" :value="task.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="来源链接">
+          <el-input v-model="materialForm.sourceUrl" maxlength="2048" placeholder="https://..." />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="materialForm.description" type="textarea" :rows="5" maxlength="16000" show-word-limit />
+        </el-form-item>
+        <el-alert
+          title="元数据资料不会产生可检索文件；需要问答时请上传 PDF 或 DOCX。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+      </el-form>
+      <template #footer>
+        <el-button @click="materialDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingMaterial" @click="saveMaterial">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="sourceDialogVisible" title="可信原文片段" width="680px" destroy-on-close>
+      <el-skeleton v-if="sourceLoading" :rows="5" animated />
+      <el-alert v-else-if="sourceError" :title="sourceError" type="error" :closable="false" show-icon />
+      <template v-else-if="sourceCitation">
+        <div class="source-dialog__meta">
+          <strong>{{ sourceCitation.materialName }}</strong>
+          <span class="muted">{{ citationLocationLabel(sourceCitation) }}</span>
+        </div>
+        <p class="source-dialog__excerpt">{{ sourceCitation.originalExcerpt }}</p>
+      </template>
+      <el-empty v-else description="暂时没有可展示的原文片段" />
+      <template #footer>
+        <el-button @click="sourceDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -349,27 +562,42 @@
 
 <script setup lang="ts">
 import axios from 'axios'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 
 import {
+  createLearningMaterial,
   createLearningTask,
   createStudyRecord,
+  deleteLearningMaterial,
   deleteLearningTask,
   deleteStudyRecord,
+  getLearningMaterialChunk,
+  getLearningMaterialFile,
   getLearningPlan,
+  getRagStatus,
   getWeeklyReview,
+  listLearningMaterials,
   listLearningTasks,
   listStudyRecords,
+  queryLearningPlanRag,
+  reindexLearningMaterial,
   suggestWeeklyReviewWithAi,
+  updateLearningMaterial,
   updateLearningTask,
   updateStudyRecord,
   updateWeeklyReview,
+  uploadLearningMaterial,
 } from '@/api/learning'
 import type {
-  LearningPlan,
   LearningAiEvidence,
+  LearningMaterial,
+  LearningMaterialIndexStatus,
+  LearningMaterialRequest,
+  LearningPlan,
+  LearningPlanRagQueryResponse,
+  RagCitation,
   WeeklyReviewAiItem,
   WeeklyReviewAiSuggestionResponse,
   LearningPlanStatus,
@@ -389,16 +617,40 @@ const planId = computed(() => Number(route.params.planId))
 const plan = ref<LearningPlan | null>(null)
 const tasks = ref<LearningTask[]>([])
 const records = ref<StudyRecord[]>([])
+const materials = ref<LearningMaterial[]>([])
 const review = ref<WeeklyReview | null>(null)
 const loading = ref(false)
 const tasksLoading = ref(false)
 const recordsLoading = ref(false)
+const materialsLoading = ref(false)
 const reviewLoading = ref(false)
 const savingTask = ref(false)
 const savingRecord = ref(false)
+const savingMaterial = ref(false)
+const uploadingMaterial = ref(false)
 const savingReview = ref(false)
 const activeTab = ref('tasks')
 const selectedTaskId = ref<number | null>(null)
+const uploadTaskId = ref<number | undefined>(undefined)
+const materialsError = ref('')
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const reindexingMaterialId = ref<number | null>(null)
+
+const ragAvailable = ref<boolean | null>(null)
+const ragStatusLoading = ref(false)
+const ragLoading = ref(false)
+const ragQuestion = ref('')
+const ragAnswer = ref('')
+const ragCitations = ref<RagCitation[]>([])
+const ragWarnings = ref<string[]>([])
+const ragEvidenceInsufficient = ref(false)
+const ragError = ref('')
+const ragRequestVersion = ref(0)
+const sourceDialogVisible = ref(false)
+const sourceLoading = ref(false)
+const sourceError = ref('')
+const sourceCitation = ref<RagCitation | null>(null)
+const sourceRequestVersion = ref(0)
 
 const taskDialogVisible = ref(false)
 const editingTaskId = ref<number | null>(null)
@@ -406,6 +658,9 @@ const taskFormRef = ref<FormInstance>()
 const recordDialogVisible = ref(false)
 const editingRecordId = ref<number | null>(null)
 const recordFormRef = ref<FormInstance>()
+const materialDialogVisible = ref(false)
+const editingMaterialId = ref<number | null>(null)
+const materialFormRef = ref<FormInstance>()
 const reviewFormRef = ref<FormInstance>()
 const aiReviewDialogVisible = ref(false)
 const aiReviewLoading = ref(false)
@@ -433,8 +688,13 @@ function emptyRecordForm(): StudyRecordRequest {
   return { studiedAt: nowLocalDateTime(), durationMinutes: 30, content: '' }
 }
 
+function emptyMaterialForm(): LearningMaterialRequest {
+  return { taskId: undefined, title: '', sourceUrl: '', description: '' }
+}
+
 const taskForm = reactive<LearningTaskRequest>(emptyTaskForm())
 const recordForm = reactive<StudyRecordRequest>(emptyRecordForm())
+const materialForm = reactive<LearningMaterialRequest>(emptyMaterialForm())
 const taskRules: FormRules = {
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
   status: [{ required: true, message: '请选择任务状态', trigger: 'change' }],
@@ -443,6 +703,9 @@ const taskRules: FormRules = {
 const recordRules: FormRules = {
   studiedAt: [{ required: true, message: '请选择学习时间', trigger: 'change' }],
   durationMinutes: [{ required: true, type: 'number', min: 1, message: '学习时长必须大于 0', trigger: 'change' }],
+}
+const materialRules: FormRules = {
+  title: [{ required: true, message: '请输入资料标题', trigger: 'blur' }],
 }
 
 const reviewForm = reactive<WeeklyReviewRequest>({
@@ -455,6 +718,11 @@ const reviewForm = reactive<WeeklyReviewRequest>({
 const reviewRules: FormRules = {
   reviewedAt: [{ required: true, message: '请选择复盘时间', trigger: 'change' }],
 }
+
+const hasReadyMaterial = computed(() => materials.value.some((material) => material.indexStatus === 'READY'))
+const canAskRag = computed(
+  () => ragAvailable.value === true && hasReadyMaterial.value && !ragLoading.value && ragQuestion.value.trim().length > 0,
+)
 
 function nowLocalDateTime(): string {
   const date = new Date()
@@ -481,6 +749,51 @@ function taskStatusTag(status: LearningTaskStatus): 'info' | 'warning' | 'succes
   if (status === 'IN_PROGRESS') return 'warning'
   if (status === 'SKIPPED') return 'danger'
   return 'info'
+}
+
+function taskLabel(taskId: number | null | undefined): string {
+  if (!taskId) return '未关联任务'
+  return tasks.value.find((task) => task.id === taskId)?.title ?? `任务 #${taskId}`
+}
+
+function materialStatusLabel(status?: LearningMaterialIndexStatus): string {
+  return {
+    METADATA: '仅元数据',
+    UPLOADED: '处理中',
+    READY: '已就绪',
+    FAILED: '处理失败',
+  }[status ?? 'METADATA']
+}
+
+function materialStatusTag(status?: LearningMaterialIndexStatus): 'info' | 'warning' | 'success' | 'danger' {
+  if (status === 'READY') return 'success'
+  if (status === 'FAILED') return 'danger'
+  if (status === 'UPLOADED') return 'warning'
+  return 'info'
+}
+
+function materialFileLabel(material: LearningMaterial): string {
+  if (material.fileName) return material.fileName
+  return material.sourceUrl ? '外部链接（未上传文件）' : '未上传文件'
+}
+
+function formatFileSize(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return '—'
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`
+}
+
+function citationKey(citation: RagCitation): string {
+  return citation.citationKey ?? `${citation.materialId}-${citation.chunkId}`
+}
+
+function citationLocationLabel(citation: RagCitation): string {
+  const location = citation.locationLabel?.trim()
+  if (citation.pageNumber !== null && citation.pageNumber !== undefined) {
+    return location ? `第 ${citation.pageNumber} 页 · ${location}` : `第 ${citation.pageNumber} 页`
+  }
+  return location || '原文位置未标注'
 }
 
 function evidenceTypeLabel(type: string): string {
@@ -515,22 +828,72 @@ function isNotFound(error: unknown): boolean {
   return axios.isAxiosError(error) && error.response?.status === 404
 }
 
+function invalidateRagResult(clearQuestion = false): void {
+  ragRequestVersion.value += 1
+  ragAnswer.value = ''
+  ragCitations.value = []
+  ragWarnings.value = []
+  ragEvidenceInsufficient.value = false
+  ragError.value = ''
+  ragLoading.value = false
+  sourceRequestVersion.value += 1
+  sourceDialogVisible.value = false
+  sourceLoading.value = false
+  sourceError.value = ''
+  sourceCitation.value = null
+  if (clearQuestion) ragQuestion.value = ''
+}
+
+async function loadMaterials(id = planId.value): Promise<void> {
+  if (!Number.isInteger(id) || id <= 0) return
+  materialsLoading.value = true
+  materialsError.value = ''
+  try {
+    const loadedMaterials = await listLearningMaterials(id)
+    if (id === planId.value) materials.value = loadedMaterials
+  } catch {
+    if (id === planId.value) {
+      materials.value = []
+      materialsError.value = '资料列表加载失败，请稍后刷新当前计划。'
+    }
+  } finally {
+    if (id === planId.value) materialsLoading.value = false
+  }
+}
+
+async function loadRagStatus(id = planId.value): Promise<void> {
+  ragStatusLoading.value = true
+  try {
+    const status = await getRagStatus(id)
+    if (id === planId.value) ragAvailable.value = status.available
+  } catch {
+    if (id === planId.value) {
+      ragAvailable.value = false
+      ragError.value = '问答服务状态暂时无法确认，请稍后再试。'
+    }
+  } finally {
+    if (id === planId.value) ragStatusLoading.value = false
+  }
+}
+
 async function load(): Promise<void> {
   const id = planId.value
   if (!Number.isInteger(id) || id <= 0) return
   loading.value = true
   try {
     const [loadedPlan, loadedTasks] = await Promise.all([getLearningPlan(id), listLearningTasks(id)])
+    if (id !== planId.value) return
     plan.value = loadedPlan
     tasks.value = loadedTasks
     if (!tasks.value.some((task) => task.id === selectedTaskId.value)) {
       selectedTaskId.value = tasks.value[0]?.id ?? null
     }
-    await Promise.all([loadReview(id), loadRecords(selectedTaskId.value)])
+    await Promise.all([loadReview(id), loadRecords(selectedTaskId.value), loadMaterials(id)])
+    void loadRagStatus(id)
   } catch {
     // The response interceptor presents the structured API error.
   } finally {
-    loading.value = false
+    if (id === planId.value) loading.value = false
   }
 }
 
@@ -767,6 +1130,224 @@ async function removeRecord(row: StudyRecord): Promise<void> {
   }
 }
 
+function openFilePicker(): void {
+  if (!plan.value || uploadingMaterial.value) return
+  fileInputRef.value?.click()
+}
+
+function isSupportedMaterialFile(file: File): boolean {
+  const name = file.name.toLowerCase()
+  return name.endsWith('.pdf') || name.endsWith('.docx')
+}
+
+async function handleFileChange(event: Event): Promise<void> {
+  const input = event.currentTarget as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !plan.value) return
+  if (!isSupportedMaterialFile(file)) {
+    materialsError.value = '只支持 PDF 或 DOCX 文件。'
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    materialsError.value = '文件不能超过 5 MiB。'
+    return
+  }
+
+  const id = plan.value.id
+  uploadingMaterial.value = true
+  materialsError.value = ''
+  let uploadFailed = false
+  invalidateRagResult()
+  try {
+    const uploaded = await uploadLearningMaterial(id, file, uploadTaskId.value)
+    if (id !== planId.value) return
+    if (uploaded.indexStatus === 'FAILED') {
+      ElMessage.warning('文件已上传，但索引处理失败；可点击“重新索引”重试。')
+    } else if (uploaded.indexStatus === 'UPLOADED') {
+      ElMessage.info('文件已上传，正在处理中；请等待状态变为“已就绪”。')
+    } else {
+      ElMessage.success('资料上传并完成处理')
+    }
+  } catch {
+    uploadFailed = true
+  } finally {
+    await loadMaterials(id)
+    if (id === planId.value) {
+      uploadingMaterial.value = false
+      if (uploadFailed) materialsError.value = '资料上传或处理失败，请刷新列表查看“处理失败”状态并重试。'
+    }
+  }
+}
+
+function openMaterialCreate(): void {
+  if (!plan.value) return
+  editingMaterialId.value = null
+  Object.assign(materialForm, emptyMaterialForm())
+  materialDialogVisible.value = true
+}
+
+function openMaterialEdit(row: LearningMaterial): void {
+  editingMaterialId.value = row.id
+  Object.assign(materialForm, {
+    taskId: row.taskId ?? undefined,
+    title: row.title,
+    sourceUrl: row.sourceUrl ?? '',
+    description: row.description ?? '',
+  })
+  materialDialogVisible.value = true
+}
+
+async function saveMaterial(): Promise<void> {
+  const valid = await materialFormRef.value?.validate().catch(() => false)
+  const id = plan.value?.id
+  if (!valid || !id || !materialForm.title.trim()) return
+  savingMaterial.value = true
+  const payload: LearningMaterialRequest = {
+    taskId: materialForm.taskId || undefined,
+    title: materialForm.title.trim(),
+    sourceUrl: materialForm.sourceUrl?.trim() || undefined,
+    description: materialForm.description?.trim() || undefined,
+  }
+  invalidateRagResult()
+  try {
+    const materialId = editingMaterialId.value
+    const isCreate = materialId === null
+    if (isCreate) {
+      await createLearningMaterial(id, payload)
+    } else {
+      await updateLearningMaterial(id, materialId, payload)
+    }
+    if (id !== planId.value) return
+    materialDialogVisible.value = false
+    ElMessage.success(isCreate ? '资料元数据已创建' : '资料元数据已更新')
+    await loadMaterials(id)
+  } catch {
+    if (id === planId.value) materialsError.value = '资料元数据保存失败，请稍后再试。'
+  } finally {
+    if (id === planId.value) savingMaterial.value = false
+  }
+}
+
+async function removeMaterial(row: LearningMaterial): Promise<void> {
+  const id = plan.value?.id
+  if (!id) return
+  try {
+    await ElMessageBox.confirm(`确定删除“${row.title}”吗？已上传文件和索引也会被删除。`, '确认删除', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    invalidateRagResult()
+    await deleteLearningMaterial(id, row.id)
+    if (id !== planId.value) return
+    ElMessage.success('学习资料已删除')
+    await loadMaterials(id)
+  } catch {
+    // Cancellation and API failures require no additional page-level message.
+  }
+}
+
+async function reindexMaterial(row: LearningMaterial): Promise<void> {
+  const id = plan.value?.id
+  if (!id || !row.fileName || reindexingMaterialId.value !== null) return
+  reindexingMaterialId.value = row.id
+  materialsError.value = ''
+  let reindexFailed = false
+  invalidateRagResult()
+  try {
+    const result = await reindexLearningMaterial(id, row.id)
+    if (id !== planId.value) return
+    if (result.indexStatus === 'FAILED') {
+      ElMessage.warning('重新索引失败，请稍后再试。')
+    } else {
+      ElMessage.success('资料已重新索引')
+    }
+  } catch {
+    reindexFailed = true
+  } finally {
+    await loadMaterials(id)
+    if (id === planId.value) {
+      reindexingMaterialId.value = null
+      if (reindexFailed) materialsError.value = '重新索引失败；列表已刷新，请查看当前索引状态。'
+    }
+  }
+}
+
+async function downloadMaterial(row: LearningMaterial): Promise<void> {
+  const id = plan.value?.id
+  if (!id || !row.fileName) return
+  materialsError.value = ''
+  try {
+    const blob = await getLearningMaterialFile(id, row.id)
+    if (id !== planId.value) return
+    const objectUrl = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = objectUrl
+    anchor.download = row.fileName.replace(/[\\/:*?"<>|]/g, '_')
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+  } catch {
+    if (id === planId.value) materialsError.value = '原文件下载失败，请稍后再试。'
+  }
+}
+
+async function askRag(): Promise<void> {
+  const id = plan.value?.id
+  const question = ragQuestion.value.trim()
+  if (!id || !question || ragAvailable.value !== true || ragLoading.value) return
+  if (!materials.value.some((material) => material.indexStatus === 'READY')) {
+    ragError.value = '请先上传资料并等待至少一份资料显示“已就绪”。'
+    return
+  }
+
+  invalidateRagResult()
+  const requestVersion = ragRequestVersion.value
+  ragLoading.value = true
+  try {
+    const result: LearningPlanRagQueryResponse = await queryLearningPlanRag(id, question)
+    if (requestVersion !== ragRequestVersion.value || id !== planId.value) return
+    ragAnswer.value = result.answer?.trim() ?? ''
+    ragCitations.value = result.citations ?? []
+    ragWarnings.value = result.warnings ?? []
+    ragEvidenceInsufficient.value = Boolean(result.evidenceInsufficient)
+    if (!ragAnswer.value && !ragEvidenceInsufficient.value) {
+      ragError.value = '问答返回了空回答，请稍后重试。'
+    }
+  } catch {
+    if (requestVersion === ragRequestVersion.value && id === planId.value) {
+      ragError.value = '问答失败，请稍后重试；当前计划和资料不会被修改。'
+    }
+  } finally {
+    if (requestVersion === ragRequestVersion.value && id === planId.value) ragLoading.value = false
+  }
+}
+
+async function openCitation(citation: RagCitation): Promise<void> {
+  const id = plan.value?.id
+  if (!id) return
+  const requestVersion = ragRequestVersion.value
+  const sourceVersion = sourceRequestVersion.value + 1
+  sourceRequestVersion.value = sourceVersion
+  sourceDialogVisible.value = true
+  sourceLoading.value = true
+  sourceError.value = ''
+  sourceCitation.value = null
+  try {
+    const loaded = await getLearningMaterialChunk(id, citation.materialId, citation.chunkId)
+    if (requestVersion !== ragRequestVersion.value || sourceVersion !== sourceRequestVersion.value || id !== planId.value) return
+    sourceCitation.value = loaded
+  } catch {
+    if (requestVersion === ragRequestVersion.value && sourceVersion === sourceRequestVersion.value && id === planId.value) {
+      sourceError.value = '原文片段加载失败，资料可能已更新；请重新提问后再试。'
+    }
+  } finally {
+    if (requestVersion === ragRequestVersion.value && sourceVersion === sourceRequestVersion.value && id === planId.value) sourceLoading.value = false
+  }
+}
+
 async function saveReview(): Promise<void> {
   const valid = await reviewFormRef.value?.validate().catch(() => false)
   if (!valid || !plan.value || !reviewForm.reviewedAt) {
@@ -798,7 +1379,26 @@ async function saveReview(): Promise<void> {
   }
 }
 
+watch(planId, (id, previousId) => {
+  if (previousId === undefined || id === previousId) return
+  invalidateRagResult(true)
+  plan.value = null
+  tasks.value = []
+  records.value = []
+  materials.value = []
+  review.value = null
+  ragAvailable.value = null
+  ragStatusLoading.value = false
+  materialsError.value = ''
+  uploadingMaterial.value = false
+  reindexingMaterialId.value = null
+  selectedTaskId.value = null
+  activeTab.value = 'tasks'
+  void load()
+})
+
 onMounted(load)
+onBeforeUnmount(() => invalidateRagResult(true))
 </script>
 
 <style scoped>
@@ -814,6 +1414,25 @@ onMounted(load)
 .review-heading-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .table-wrap { min-height: 180px; }
 .record-toolbar { display: flex; align-items: center; gap: 12px; }
+.materials-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.file-input { display: none; }
+.materials-alert { margin-bottom: 14px; }
+.materials-wrap { overflow-x: auto; }
+.file-size { color: var(--el-text-color-secondary); font-size: 12px; }
+.rag-panel { margin-top: 24px; padding: 16px; border: 1px solid var(--el-border-color-light); border-radius: 8px; background: var(--el-bg-color); }
+.rag-panel__heading { margin-top: 0; }
+.rag-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.rag-answer, .rag-sources { margin-top: 18px; }
+.rag-answer h4, .rag-sources h4 { margin: 0 0 9px; color: var(--el-text-color-primary); font-size: 15px; }
+.rag-answer p { margin: 0; padding: 12px; border-radius: 6px; color: var(--el-text-color-primary); background: var(--el-fill-color-light); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rag-citation { margin-top: 10px; padding: 12px; border: 1px solid var(--el-border-color-lighter); border-radius: 6px; }
+.rag-citation__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.rag-citation__heading strong { color: var(--el-text-color-primary); overflow-wrap: anywhere; }
+.rag-citation p { margin: 8px 0 2px; color: var(--el-text-color-regular); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.warning-list { margin: 0; padding-left: 20px; line-height: 1.7; }
+.source-dialog__meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.source-dialog__meta strong { color: var(--el-text-color-primary); overflow-wrap: anywhere; }
+.source-dialog__excerpt { margin: 16px 0 0; padding: 14px; border-radius: 6px; color: var(--el-text-color-regular); background: var(--el-fill-color-light); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .task-select { width: 260px; }
 .review-alert { margin-bottom: 18px; }
 .review-form { padding-top: 4px; }
@@ -850,9 +1469,15 @@ onMounted(load)
   .form-grid { grid-template-columns: 1fr; }
   .review-ai-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .record-toolbar { width: 100%; flex-wrap: wrap; }
+  .materials-toolbar { width: 100%; justify-content: flex-start; }
   .task-select { width: 100%; }
 }
 @media (max-width: 440px) {
   .review-ai-metrics { grid-template-columns: 1fr; }
+  .materials-toolbar .el-button { width: 100%; margin-left: 0; }
+  .rag-panel { padding: 12px; }
+  .rag-actions { align-items: flex-start; flex-direction: column; }
+  .rag-actions .el-button { width: 100%; }
+  .rag-citation__heading { flex-direction: column; }
 }
 </style>

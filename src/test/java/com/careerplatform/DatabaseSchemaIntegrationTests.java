@@ -27,6 +27,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class DatabaseSchemaIntegrationTests {
 
+    @Autowired
+    private com.careerplatform.learning.mapper.LearningMaterialChunkMapper materialChunkMapper;
+
+    @Test
+    void milestoneSevenOriginalAndOwnerAwareChunkSchemaExists() {
+        assertThat(materialChunkMapper).isNotNull();
+        assertThat(jdbcTemplate.queryForObject("SELECT data_type FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='learning_material' AND column_name='file_content'", String.class)).isEqualTo("mediumblob");
+        assertThat(jdbcTemplate.queryForObject("SELECT data_type FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='learning_material_chunk' AND column_name='embedding'", String.class)).isEqualTo("json");
+        assertThat(jdbcTemplate.queryForList("SELECT column_name FROM information_schema.key_column_usage WHERE constraint_schema=DATABASE() AND constraint_name='fk_learning_material_chunk_material_owner' ORDER BY ordinal_position", String.class)).containsExactly("material_id","user_id");
+        assertThat(jdbcTemplate.queryForList("SELECT referenced_column_name FROM information_schema.key_column_usage WHERE constraint_schema=DATABASE() AND constraint_name='fk_learning_material_chunk_material_owner' ORDER BY ordinal_position", String.class)).containsExactly("id","user_id");
+        assertThat(jdbcTemplate.queryForObject("SELECT delete_rule FROM information_schema.referential_constraints WHERE constraint_schema=DATABASE() AND constraint_name='fk_learning_material_chunk_material_owner'", String.class)).isEqualTo("CASCADE");
+        assertThat(jdbcTemplate.queryForList("SELECT column_name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='learning_material_chunk' AND index_name='uk_learning_material_chunk_material_index' AND non_unique=0 ORDER BY seq_in_index", String.class)).containsExactly("material_id","chunk_index");
+    }
+
     private static final List<String> MILESTONE_TWO_TABLES = List.of(
             "user_profile",
             "education_experience",
@@ -186,6 +200,8 @@ class DatabaseSchemaIntegrationTests {
     );
 
     private static final List<LearningUniqueIndexColumn> EXPECTED_LEARNING_UNIQUE_INDEX_COLUMNS = List.of(
+            new LearningUniqueIndexColumn("learning_material", "uk_learning_material_id_user_id", 1, "id"),
+            new LearningUniqueIndexColumn("learning_material", "uk_learning_material_id_user_id", 2, "user_id"),
             new LearningUniqueIndexColumn("learning_plan", "uk_learning_plan_id_user_id", 1, "id"),
             new LearningUniqueIndexColumn("learning_plan", "uk_learning_plan_id_user_id", 2, "user_id"),
             new LearningUniqueIndexColumn("learning_plan", "uk_learning_plan_user_week_start", 1, "user_id"),
@@ -265,7 +281,7 @@ class DatabaseSchemaIntegrationTests {
     @Autowired private FinalReviewMapper finalReviewMapper;
 
     @Test
-    void milestoneFiveBApplicationSchemaAndMappersShouldExistInRealMySql() {
+    void applicationSchemaAndCurrentGlobalTableCountShouldExistInRealMySql() {
         List<String> applicationTables = jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() "
                         + "AND table_name IN ('application','application_stage_history','assessment','interview','offer','final_review')",
@@ -276,7 +292,9 @@ class DatabaseSchemaIntegrationTests {
         Integer businessTableCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'",
                 Integer.class);
-        assertThat(businessTableCount).isEqualTo(28);
+        // M5B introduced six Application tables (28 total at that checkpoint).
+        // M7 adds learning_material_chunk; the current global schema now has 29 tables.
+        assertThat(businessTableCount).isEqualTo(29);
 
         List<String> foreignKeys = jdbcTemplate.queryForList(
                 "SELECT constraint_name FROM information_schema.referential_constraints "

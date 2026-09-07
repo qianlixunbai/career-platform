@@ -1,14 +1,20 @@
 # 开发状态
 
-> 更新日期：2026-09-06。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
+## M7 / P2-A RAG 当前状态
 
-## 当前工作 — Milestone 6C
+**required gates 已通过，M7 状态为 `GO — READY FOR CHECKPOINT`，正式 AI 功能计 4 个。** 本轮扩展现有 LearningMaterial，实现 PDF/DOCX 原件上传、MySQL BLOB 与 Chunk 持久化、独立 Embedding、owner/plan-scoped 检索、Flash 问答和 Java 可信引用重建，前端融入原学习计划详情，不新增 routed page。真实 MySQL 与最小真实 Provider 证据均已通过；Real Provider Gate 已获外部 TechLead 接受，最终 GO 尚待确认。当前改动仍未 commit/push。详细实际执行结果统一记录于 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。以下 M2～M6C 的未实现项与统计是各 checkpoint 历史上下文。
+
+本轮已核验：M7 离线 9 类去重库存 42 项全绿（单次 41，随后 mapper 2）；M6 回归 17 类 129 项全绿，其中 M6A/M6B 共享 no-tools 31、M6C 专用 98，历史 OfflineFlow 4 不计入本轮；typecheck/build 与 browser fixture QA 11 组通过、pageErrors=[]。当前机械统计 29 个 unique `CREATE TABLE`、26 个 exact `@RestController`（排除 Advice）、21 个 routed pages、4 个 completed AI functions。用户 IDEA 最新 MySQL 指定套件 30 项全绿：Schema 5、Core 11、Support 6、RAG 8，`BUILD SUCCESS` 46.750s；真实 Provider PASS 为 Jina AI `jina-embeddings-v5-text-small` + 固定 `deepseek-v4-flash`，Query2 citation=0 且 plan snapshot unchanged、cleanup=true、retry=0。运行时 Query2 Chat calls/provider wire counts 均为 `NOT OBSERVABLE`，确定性 no-evidence 分支 skips Chat 为 PASS。当前决定 GO — M7 READY FOR CHECKPOINT，不 commit/push。
+
+> 更新日期：2026-09-07。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
+
+## Milestone 6C 历史基线
 
 M6C AI Job Discovery 已实现并通过 Final Closing Verification，正式 AI 功能达到 3 个。当前状态为 **FROZEN / COMMITTED / PUSHED**；M6C checkpoint / 本次 docs-only cleanup 起始 HEAD 为 `915acc0d02ac173877ae49b10fff96243b236cd5`，已 push 到 `origin/main`。本次 cleanup 只同步文档，不改变 M6C checkpoint；原 Closing 的 READY FOR CHECKPOINT 决策属于 pre-checkpoint historical decision。
 
 M6C Closing 阶段的历史验证（2026-09-06）包括：deterministic 11 类 102 项、M6A/M6B regression 7 类 31 项、真实 MySQL JobDiscoveryControllerIntegrationTests 3 项、frontend typecheck/build 均 PASS。2026-09-05 browser fixture QA 9 组为历史证据，本次未重跑。Smoke #4 历史实测 HTTP 200 / candidates=3 / searchCalls=2 / exactly one discovery / retry=0；Job、Company 均 0→0。Closing 阶段新增真实 Provider 调用为 0；本次 post-M6C docs-only cleanup 未运行测试或 build。
 
-当前机械统计：28 张业务表、25 个精确 @RestController（不含 @RestControllerAdvice）、21 个 routed pages、3 个已完成 AI 功能。详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。下方 M2～M6B 保留为历史里程碑记录。
+M6C checkpoint 历史快照为：28 张业务表、25 个精确 @RestController（不含 @RestControllerAdvice）、21 个 routed pages、3 个已完成 AI 功能；RAG 在该 checkpoint 范围内尚未实现。详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。M7 的当前统计和门禁见本文开头及专项报告，下方 M2～M6B 保留为历史里程碑记录。
 
 ## Milestone 2 结论
 
@@ -164,10 +170,18 @@ M6B 当时将正式 AI 功能数从 1 增至 2；当时距课程最低 3 个仍�
 - Astra/Codex 实际运行 frontend typecheck/build 均 PASS。精确 annotation 扫描得到 **24** 个 `@RestController`，此前 25 的口径混入 `@RestControllerAdvice`；源码/SQL 仍为 28 张业务表、20 个 routed pages，无 M6B migration。
 - 历史 Codex Full Maven 151 项中的 97 errors 是本地凭据不可见导致的认证错误，未作为代码缺陷；用户 IDEA 后续 155 项全绿已关闭 MySQL 门禁。live smoke 使用用户持有凭据的 backend，Astra 未读取秘密。最终 secret audit、机械统计、`git diff --check` 均 PASS。
 
+## M7 当前收口证据
+
+- MySQL latest Gate：`target/m7-mysql-confirmed-result.json`，`DatabaseSchemaIntegrationTests` 5、`LearningCoreIntegrationTests` 11、`LearningSupportIntegrationTests` 6、`RagMaterialIntegrationTests` 8，共 30 项，Failures/Errors/Skipped 均为 0，用户 IDEA `BUILD SUCCESS` 46.750s；007 未重复执行。
+- M7 deterministic 为 9 类当前去重库存 42 项全绿：`target/m7-deterministic-final.log` 单次 41 项，`target/m7-mapper-final.log` 随后 mapper 2 项（原 1、新增 1）。M6 regression 为 17 类 129 项全绿；不把去重库存或历史 OfflineFlow 4 项冒充单次执行。
+- Real Provider Gate：Jina AI `jina-embeddings-v5-text-small` 实际索引 1 Chunk；Query1 Java 21 trusted citation，Query2 insufficient-evidence 且零 citation、plan snapshot unchanged、cleanup=true、retry=0。runtime Query2 Chat calls/provider wire counts 为 `NOT OBSERVABLE`；确定性 no-evidence 分支 skips Chat PASS。首次 503 timeout 结果和 proxy connectivity evidence 均保留，生产 Chat 固定 `deepseek-v4-flash` 且无 fallback。
+- 前端 `typecheck`/`build` exit 0，browser QA 11 groups PASS、`pageErrors=[]`、390px PASS；build chunk size warning 记录为 P2。无 AI 配置完整启动证据是 2026-09-05 历史 `AiOpenAiWithoutKeyContextTest`，M7 `RagConfigurationTest` 2 项仅 context slice。
+- P0=0、P1=0。P2/边界包括 DOCX 仅校验 Word root namespace、数据库不可用时 FAILED 写入可能失败并保留 retryable UPLOADED、无 delete endpoint 导致 smoke 账号 1976/1977 保留及 bundle warning；这些不阻塞 checkpoint。
+
 ## 当前未实现
 
 - Spring Security 完整框架、RBAC、OAuth、Refresh Token、Token 黑名单和复杂 Logout。
-- AI 面试与求职复盘、Resume + JD matching、RAG、Embedding、通用 Agent、AI Evaluation 尚未实现。Tool Calling 已通过 M6C Job Discovery 完成，正式 AI 功能当前为 3 个。
+- AI 面试与求职复盘、Resume + JD matching、通用 Agent、AI Evaluation 尚未实现。M6C Tool Calling 与 M7 RAG/Embedding 已完成，正式 AI 功能当前为 4 个。
 - Redis、MQ、Elasticsearch、管理员后台和 HR 端。
 
 ## 已知技术债
@@ -179,4 +193,4 @@ M6B 当时将正式 AI 功能数从 1 增至 2；当时距课程最低 3 个仍�
 
 ## 下一步建议
 
-M6C checkpoint 已完成并 push。后续方向按 P2 规划评估 RAG；RAG 当前仍未实现，本轮不进入新功能或新 milestone。
+M7 已达到 `GO — READY FOR CHECKPOINT`；等待外部 TechLead 最终 GO。当前仍未 commit/push，不启动新的功能 milestone。
