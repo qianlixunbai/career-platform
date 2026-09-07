@@ -2,6 +2,8 @@
 
 ## M7 / P2-A 增量（MySQL Gate PASS）
 
+M7 已完成并冻结，状态为 `FROZEN / COMMITTED / PUSHED`；feature checkpoint 为 `6e4db93ccae7b4efc9530c8950926d257eb21aaf`，已 push 到 `origin/main`。MySQL 验收结果为 checkpoint 前实际证据，本次未再次执行迁移或测试。
+
 新增一次性迁移 `sql/007_add_learning_material_rag.sql`：扩展 learning_material 的原件 BLOB、文件名/MIME/大小、索引状态、Chunk 数与 Embedding 身份；新增 `learning_material_chunk` 技术表。当前源码 DDL 为 28 张既有业务表 + 1 张 RAG 技术表，共 29 张；用户 IDEA 最新 MySQL Gate 已验证 007 结构和事务行为。
 
 Chunk 保存 user_id、material_id、chunk_index、text、location_label、可空 page_number、JSON embedding、embedding_identity、created_at。`UNIQUE(material_id,chunk_index)` 保证文档顺序唯一；复合 FK `(material_id,user_id) → learning_material(id,user_id) ON DELETE CASCADE` 阻止跨 owner 子记录，并让原有 Material/Plan 删除事务清理 Chunk。其他既有 Learning FK 不变。

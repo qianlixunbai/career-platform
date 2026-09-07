@@ -2,9 +2,9 @@
 
 ## M7 / P2-A RAG 当前状态
 
-**required gates 已通过，M7 状态为 `GO — READY FOR CHECKPOINT`，正式 AI 功能计 4 个。** 本轮扩展现有 LearningMaterial，实现 PDF/DOCX 原件上传、MySQL BLOB 与 Chunk 持久化、独立 Embedding、owner/plan-scoped 检索、Flash 问答和 Java 可信引用重建，前端融入原学习计划详情，不新增 routed page。真实 MySQL 与最小真实 Provider 证据均已通过；Real Provider Gate 已获外部 TechLead 接受，最终 GO 尚待确认。当前改动仍未 commit/push。详细实际执行结果统一记录于 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。以下 M2～M6C 的未实现项与统计是各 checkpoint 历史上下文。
+**required gates 已通过，M7 状态为 `FROZEN / COMMITTED / PUSHED`，正式 AI 功能计 4 个。** 本轮扩展现有 LearningMaterial，实现 PDF/DOCX 原件上传、MySQL BLOB 与 Chunk 持久化、独立 Embedding、owner/plan-scoped 检索、Flash 问答和 Java 可信引用重建，前端融入原学习计划详情，不新增 routed page。真实 MySQL 与最小真实 Provider 证据均已通过；外部 Tech Lead 已给出最终 GO；M7 feature checkpoint 为 `6e4db93ccae7b4efc9530c8950926d257eb21aaf`，已 push 到 `origin/main`。Closing 中未提交状态为提交前历史记录。详细实际执行结果统一记录于 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。以下 M2～M6C 的未实现项与统计是各 checkpoint 历史上下文。
 
-本轮已核验：M7 离线 9 类去重库存 42 项全绿（单次 41，随后 mapper 2）；M6 回归 17 类 129 项全绿，其中 M6A/M6B 共享 no-tools 31、M6C 专用 98，历史 OfflineFlow 4 不计入本轮；typecheck/build 与 browser fixture QA 11 组通过、pageErrors=[]。当前机械统计 29 个 unique `CREATE TABLE`、26 个 exact `@RestController`（排除 Advice）、21 个 routed pages、4 个 completed AI functions。用户 IDEA 最新 MySQL 指定套件 30 项全绿：Schema 5、Core 11、Support 6、RAG 8，`BUILD SUCCESS` 46.750s；真实 Provider PASS 为 Jina AI `jina-embeddings-v5-text-small` + 固定 `deepseek-v4-flash`，Query2 citation=0 且 plan snapshot unchanged、cleanup=true、retry=0。运行时 Query2 Chat calls/provider wire counts 均为 `NOT OBSERVABLE`，确定性 no-evidence 分支 skips Chat 为 PASS。当前决定 GO — M7 READY FOR CHECKPOINT，不 commit/push。
+本轮已核验：M7 离线 9 类去重库存 42 项全绿（单次 41，随后 mapper 2）；M6 回归 17 类 129 项全绿，其中 M6A/M6B 共享 no-tools 31、M6C 专用 98，历史 OfflineFlow 4 不计入本轮；typecheck/build 与 browser fixture QA 11 组通过、pageErrors=[]。当前机械统计 29 个 unique `CREATE TABLE`、26 个 exact `@RestController`（排除 Advice）、21 个 routed pages、4 个 completed AI functions。用户 IDEA 最新 MySQL 指定套件 30 项全绿：Schema 5、Core 11、Support 6、RAG 8，`BUILD SUCCESS` 46.750s；真实 Provider PASS 为 Jina AI `jina-embeddings-v5-text-small` + 固定 `deepseek-v4-flash`，Query2 citation=0 且 plan snapshot unchanged、cleanup=true、retry=0。运行时 Query2 Chat calls/provider wire counts 均为 `NOT OBSERVABLE`，确定性 no-evidence 分支 skips Chat 为 PASS。当前状态 FROZEN / COMMITTED / PUSHED；以上均为 checkpoint 前验收证据，本次仅同步文档，未重跑门禁。
 
 > 更新日期：2026-09-07。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
 
@@ -193,4 +193,4 @@ M6B 当时将正式 AI 功能数从 1 增至 2；当时距课程最低 3 个仍�
 
 ## 下一步建议
 
-M7 已达到 `GO — READY FOR CHECKPOINT`；等待外部 TechLead 最终 GO。当前仍未 commit/push，不启动新的功能 milestone。
+M7 已完成 checkpoint 并 push，状态为 `FROZEN / COMMITTED / PUSHED`。本次任务结束，不启动新的功能 milestone。

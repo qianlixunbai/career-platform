@@ -4,7 +4,7 @@
 
 本轮实现学习资料真实文件 → 解析 → Chunk → 独立 Embedding → 当前用户/计划 Top-K → DeepSeek Flash → Java 可信引用 → 来源片段/原件查看。复用 MySQL 和 LearningMaterial，不引入向量数据库、全量文档 Prompt、独立 Chat 页面或自动业务写入。PDF 保留真实页码，DOCX 保留段落位置。
 
-deterministic、真实 MySQL、frontend/browser、最小真实 Embedding + Flash smoke 与安全/回归门禁均已通过，RAG 已计为第 4 个正式 AI 功能。Real Provider Gate 已获外部 TechLead 接受，最终 GO 尚待确认；当前仍不 commit/push。当前验收证据见 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。下方 M6C 的状态和数量为该 checkpoint 历史基线。
+deterministic、真实 MySQL、frontend/browser、最小真实 Embedding + Flash smoke 与安全/回归门禁均已通过，RAG 已计为第 4 个正式 AI 功能。外部 Tech Lead 已给出最终 GO；M7 feature checkpoint 为 `6e4db93ccae7b4efc9530c8950926d257eb21aaf`，状态为 `FROZEN / COMMITTED / PUSHED`，已 push 到 `origin/main`。Closing 保留提交前历史证据。当前验收证据见 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。下方 M6C 的状态和数量为该 checkpoint 历史基线。
 
 ## 文档定位与基线
 
@@ -265,4 +265,4 @@ Controller 不机械地与表一一对应，最终会按用例和 API 职责合�
 | 前端页面 | 15 | 21 | 21 个 routed view pages，不计 layout/redirect |
 | AI 功能 | 3 | 4 | JD Structured Parse、AI Learning Planning + Weekly Review、AI Job Discovery / Tool Calling、M7 RAG |
 
-数据表、精确 @RestController 和 routed view pages 当前分别为 29、26、21，正式完成 AI 功能为 4 个，均满足课程最低数量要求；M7 为 `GO — READY FOR CHECKPOINT`，仍未 commit/push，等待外部 TechLead 最终 GO。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。
+数据表、精确 @RestController 和 routed view pages 当前分别为 29、26、21，正式完成 AI 功能为 4 个，均满足课程最低数量要求；M7 为 `FROZEN / COMMITTED / PUSHED`，外部 Tech Lead 最终 GO 已确认。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。

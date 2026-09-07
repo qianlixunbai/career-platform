@@ -39,7 +39,7 @@
 
 ## 当前状态
 
-**Milestone 7 / P2-A RAG：required gates 已通过，状态为 `GO — READY FOR CHECKPOINT`。** 现有 LearningMaterial 已扩展真实 PDF/DOCX 上传、MySQL 原件存储、Chunk/Embedding、当前用户当前计划范围的语义检索和可信来源问答；入口位于学习计划详情的“学习资料”。正式完成 AI 功能为 4 个，包含 M7 RAG；Real Provider Gate 已获外部 TechLead 接受，最终 GO 尚待确认。当前改动仍未 commit/push。证据及配置见 [M7 Closing](docs/M7_RAG_CLOSING_VERIFICATION.md)。下列 M2～M6C 内容保留各里程碑历史记录。
+**Milestone 7 / P2-A RAG：已完成并冻结，状态为 `FROZEN / COMMITTED / PUSHED`。** 现有 LearningMaterial 已扩展真实 PDF/DOCX 上传、MySQL 原件存储、Chunk/Embedding、当前用户当前计划范围的语义检索和可信来源问答；入口位于学习计划详情的“学习资料”。正式完成 AI 功能为 4 个，包含 M7 RAG；外部 Tech Lead 已给出最终 GO；M7 feature checkpoint 为 `6e4db93ccae7b4efc9530c8950926d257eb21aaf`，已 push 到 `origin/main`。M7 Closing 保留提交前的验收证据，其 READY/NOT COMMITTED/NOT PUSHED 描述历史时点。证据及配置见 [M7 Closing](docs/M7_RAG_CLOSING_VERIFICATION.md)。下列 M2～M6C 内容保留各里程碑历史记录。
 
 Milestone 2 已冻结并以 checkpoint `228bc97628a7bd9a12d9e36d65f0bebef0da094e` 固化；Milestone 3 Learning 已冻结并以 checkpoint `9959ea40189d1360329ca27cabdaa0a8f9c8a28a` 固化。两者均已通过既有真实 MySQL 集成测试。
 

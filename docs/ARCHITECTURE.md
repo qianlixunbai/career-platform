@@ -1,6 +1,6 @@
 # 系统架构
 
-## M7 / P2-A 当前增量（GO — READY FOR CHECKPOINT）
+## M7 / P2-A 当前增量（FROZEN / COMMITTED / PUSHED）
 
 - 复用 LearningMaterial 的 Plan/可选 Task 归属关系；原有链接资料继续作为 METADATA 使用。原件使用 `learning_material.file_content MEDIUMBLOB`，普通 Mapper 查询不读取 BLOB，DTO 永不返回原件 bytes。选择 MySQL 存储是为了在现有删除事务中原子删除原件与资料，并由 owner-aware FK 级联清理 Chunk，无文件路径或双写清理队列。
 - Parser：PDFBox 3.0.8 读取 PDF 实际页码；DOCX 采用 JDK ZIP + StAX 读取正文段落（包括表格段落），无稳定页码，不进行 OCR、页码推算或外部关系抓取。限制 5 MiB 文件、100 PDF 页、10 MiB ZIP 展开、200 ZIP entries、100000 文本字符、1000 字符/Chunk、128 Chunk/文档。PDFBox 依据：[Apache 官方发布](https://pdfbox.apache.org/download)。
@@ -11,11 +11,11 @@
 - 模型只返回 answer/citationKeys/evidenceInsufficient。Java 从本次检索集重建 materialId/name、chunkId、位置、页码和原文，未知 key 返回安全 AI_INVALID_RESPONSE。无命中不调用 Chat；有相似片段但没有问题所需事实时要求模型返回不足依据。来源可追溯不等同于自动证明每句话语义正确，阈值和 Prompt 不能替代模型质量评估。
 - 返回前再次 owner-check 并确认 Chunk 仍存在；原文查看、原件下载、删除、重建均 owner-scoped。问答不写任何业务数据。所有文档/问题均为 UNTRUSTED DATA，没有 Tool Calling、自动计划写入或 Pro fallback。
 
-当前门禁、限制和证据见 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。Real Provider Gate 已获外部 TechLead 接受，最终 GO 尚待确认；当前仍未 commit/push。以下 M6C/M6B/M6A 段落中的“未实现 RAG”描述其历史范围。
+当前门禁、限制和证据见 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。外部 Tech Lead 已给出最终 GO；M7 feature checkpoint 为 `6e4db93ccae7b4efc9530c8950926d257eb21aaf`，已 commit 并 push 到 `origin/main`。Closing 保留提交前历史证据。以下 M6C/M6B/M6A 段落中的“未实现 RAG”描述其历史范围。
 
 ## 文档状态
 
-本文记录截至 2026-09-07 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`，功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，已 push 到 `origin/main`。Closing 历史证据：用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。以上为 M6B checkpoint 历史记录；M7 当前门禁、证据与未提交状态见专项报告。
+本文记录截至 2026-09-07 的实际架构状态。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`，功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，已 push 到 `origin/main`。Closing 历史证据：用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。以上为 M6B checkpoint 历史记录；M7 验收历史证据见专项报告，当前冻结状态见本节。
 
 ## Milestone 6C — Job Discovery 架构
 
