@@ -44,7 +44,8 @@
             <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" class="full-width" />
           </el-form-item>
           <el-form-item label="结束日期">
-            <el-date-picker v-model="form.endDate" type="date" value-format="YYYY-MM-DD" placeholder="进行中可留空" class="full-width" />
+            <el-date-picker v-model="form.endDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" class="full-width" :disabled="ongoing" />
+            <el-checkbox v-model="ongoing">至今</el-checkbox>
           </el-form-item>
         </div>
         <el-form-item label="技术栈" required>
@@ -66,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createProjectExperience,
@@ -81,12 +82,19 @@ const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
+const ongoing = ref(false)
+
 
 function emptyForm(): ProjectExperienceRequest {
   return { projectName: '', role: '', startDate: '', endDate: '', description: '', techStack: '', projectUrl: '' }
 }
 
 const form = reactive<ProjectExperienceRequest>(emptyForm())
+watch(ongoing, (value) => {
+  if (value) {
+    form.endDate = ''
+  }
+})
 
 function dateRange(startDate: string, endDate: string | null): string {
   return `${startDate || '未填写'} — ${endDate || '至今'}`
@@ -106,6 +114,7 @@ async function load(): Promise<void> {
 function openCreate(): void {
   editingId.value = null
   Object.assign(form, emptyForm())
+  ongoing.value = false
   dialogVisible.value = true
 }
 
@@ -120,6 +129,7 @@ function openEdit(row: ProjectExperience): void {
     techStack: row.techStack,
     projectUrl: row.projectUrl ?? '',
   })
+  ongoing.value = row.endDate === null
   dialogVisible.value = true
 }
 
@@ -129,7 +139,7 @@ async function save(): Promise<void> {
     projectName: form.projectName.trim(),
     role: form.role.trim(),
     startDate: form.startDate,
-    endDate: form.endDate || undefined,
+    endDate: ongoing.value ? undefined : (form.endDate || undefined),
     description: form.description?.trim() || undefined,
     techStack: form.techStack.trim(),
     projectUrl: form.projectUrl?.trim() || undefined,
