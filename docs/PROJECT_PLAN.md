@@ -197,14 +197,14 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 
 ## 预计数据表
 
-初始设计基线规划约 28 张核心业务表；P2 可能增加技术表。当前源码 DDL 为 29 张表：28 张既有业务表加 M7 的 `learning_material_chunk` 技术表。M6A candidate 是 ephemeral suggestion，确认后写既有 `job_requirement`，因此 M6A 没有新增 AI 技术表或 migration。
+初始设计基线规划约 28 张核心业务表；P2 可能增加技术表。当前源码 DDL 为 30 张表：29 张业务表（含当前 Resume File 增量的 `resume_file`）加 M7 的 `learning_material_chunk` 技术表。M6A candidate 是 ephemeral suggestion，确认后写既有 `job_requirement`，因此 M6A 没有新增 AI 技术表或 migration。
 
 | 模块 | 候选表 |
 |---|---|
 | 共享基础档案 | `app_user`、`user_profile`、`education_experience`、`skill`、`user_skill`、`project_experience`、`internship_experience`、`certificate_award` |
 | 职业探索 | `career_goal`、`company`、`job`、`job_requirement`、`job_note` |
 | 学习提升 | `learning_plan`、`learning_task`、`study_record`、`weekly_review`、`learning_note`、`learning_material` |
-| 简历管理 | `resume`、`resume_version`、`resume_content_item` |
+| 简历管理 | `resume`、`resume_version`、`resume_content_item`、`resume_file` |
 | 求职过程 | `application`、`application_stage_history`、`assessment`、`interview`、`offer`、`final_review` |
 | P2 技术数据 | `learning_material_chunk`（M7 已落地）；后续其他检索结构按需评估 |
 
@@ -214,7 +214,7 @@ AI API 不可用时，用户仍可手工维护岗位要求。
 
 课程最终要求至少 18 个 Controller。初始设计基线按业务职责规划的 Controller 数量超过 18 个，覆盖身份与基础档案、职业探索、学习、简历、求职流程和 AI 能力。
 
-Controller 不机械地与表一一对应，最终会按用例和 API 职责合理合并或拆分。当前仓库中实际有 **26** 个精确 `@RestController`（不计 Advice），M6A 新增 `JdAiController`，M6B 新增 `LearningAiController`，M6C 新增 `JobDiscoveryController`，M7 新增 `RagController`；课程最低数量指标已达到。
+Controller 不机械地与表一一对应，最终会按用例和 API 职责合理合并或拆分。当前仓库中实际有 **27** 个精确 `@RestController`（不计 Advice），M6A 新增 `JdAiController`，M6B 新增 `LearningAiController`，M6C 新增 `JobDiscoveryController`，M7 新增 `RagController`，当前 Resume File 增量新增 `ResumeFileController`；课程最低数量指标已达到。
 
 ## 预计前端页面
 
@@ -260,9 +260,9 @@ Controller 不机械地与表一一对应，最终会按用例和 API 职责合�
 
 | 指标 | 课程最终最低要求 | 当前真实完成 | 当前规划 |
 |---|---:|---:|---:|
-| 数据表 | 18 | 29 | 28 张既有业务表 + 1 张 M7 RAG 技术表 |
-| Controller | 18 | 26 | 超过 18 个，按业务职责划分 |
+| 数据表 | 18 | 30 | 29 张业务表 + 1 张 M7 RAG 技术表 |
+| Controller | 18 | 27 | 超过 18 个，按业务职责划分 |
 | 前端页面 | 15 | 21 | 21 个 routed view pages，不计 layout/redirect |
 | AI 功能 | 3 | 4 | JD Structured Parse、AI Learning Planning + Weekly Review、AI Job Discovery / Tool Calling、M7 RAG |
 
-数据表、精确 @RestController 和 routed view pages 当前分别为 29、26、21，正式完成 AI 功能为 4 个，均满足课程最低数量要求；M7 为 `FROZEN / COMMITTED / PUSHED`，外部 Tech Lead 最终 GO 已确认。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。
+数据表、精确 @RestController 和 routed view pages 当前分别为 30、27、21，正式完成 AI 功能为 4 个，均满足课程最低数量要求；M7 为 `FROZEN / COMMITTED / PUSHED`，Resume File 已在 feature branch 本地提交且尚未 push。当前状态以[开发状态](DEVELOPMENT_STATUS.md)为准。

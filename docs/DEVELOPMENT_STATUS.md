@@ -1,12 +1,20 @@
 # 开发状态
 
-## M7 / P2-A RAG 当前状态
+## M7 / P2-A RAG 冻结状态
 
 **required gates 已通过，M7 状态为 `FROZEN / COMMITTED / PUSHED`，正式 AI 功能计 4 个。** 本轮扩展现有 LearningMaterial，实现 PDF/DOCX 原件上传、MySQL BLOB 与 Chunk 持久化、独立 Embedding、owner/plan-scoped 检索、Flash 问答和 Java 可信引用重建，前端融入原学习计划详情，不新增 routed page。真实 MySQL 与最小真实 Provider 证据均已通过；外部 Tech Lead 已给出最终 GO；M7 feature checkpoint 为 `6e4db93ccae7b4efc9530c8950926d257eb21aaf`，已 push 到 `origin/main`。Closing 中未提交状态为提交前历史记录。详细实际执行结果统一记录于 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。以下 M2～M6C 的未实现项与统计是各 checkpoint 历史上下文。
 
-本轮已核验：M7 离线 9 类去重库存 42 项全绿（单次 41，随后 mapper 2）；M6 回归 17 类 129 项全绿，其中 M6A/M6B 共享 no-tools 31、M6C 专用 98，历史 OfflineFlow 4 不计入本轮；typecheck/build 与 browser fixture QA 11 组通过、pageErrors=[]。当前机械统计 29 个 unique `CREATE TABLE`、26 个 exact `@RestController`（排除 Advice）、21 个 routed pages、4 个 completed AI functions。用户 IDEA 最新 MySQL 指定套件 30 项全绿：Schema 5、Core 11、Support 6、RAG 8，`BUILD SUCCESS` 46.750s；真实 Provider PASS 为 Jina AI `jina-embeddings-v5-text-small` + 固定 `deepseek-v4-flash`，Query2 citation=0 且 plan snapshot unchanged、cleanup=true、retry=0。运行时 Query2 Chat calls/provider wire counts 均为 `NOT OBSERVABLE`，确定性 no-evidence 分支 skips Chat 为 PASS。当前状态 FROZEN / COMMITTED / PUSHED；以上均为 checkpoint 前验收证据，本次仅同步文档，未重跑门禁。
+M7 Closing 的历史证据包括：离线 9 类去重库存 42 项全绿（单次 41，随后 mapper 2）；M6 回归 17 类 129 项全绿，其中 M6A/M6B 共享 no-tools 31、M6C 专用 98，历史 OfflineFlow 4 不计入本轮；typecheck/build 与 browser fixture QA 11 组通过、pageErrors=[]。当前机械统计为 29 张业务表 + 1 张技术表 `learning_material_chunk`（共 30 张 DDL 表）、27 个 exact `@RestController`（排除 Advice）、21 个 routed pages、4 个 completed AI functions。用户 IDEA 最新 MySQL 指定套件 30 项全绿：Schema 5、Core 11、Support 6、RAG 8，`BUILD SUCCESS` 46.750s；真实 Provider PASS 为 Jina AI `jina-embeddings-v5-text-small` + 固定 `deepseek-v4-flash`，Query2 citation=0 且 plan snapshot unchanged、cleanup=true、retry=0。运行时 Query2 Chat calls/provider wire counts 均为 `NOT OBSERVABLE`，确定性 no-evidence 分支 skips Chat 为 PASS。以上均为 M7 checkpoint 前/Closing 历史证据；本轮仅同步文档，未重跑门禁。
 
-> 更新日期：2026-09-07。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
+> 更新日期：2026-09-08。本文只记录真实完成度；长期范围见[项目规划](PROJECT_PLAN.md)。
+
+## 当前增量：Resume File（COMMITTED / NOT PUSHED）
+
+M7 仍为 `FROZEN / COMMITTED / PUSHED`；Resume File 已形成 feature branch 本地 checkpoint `b44993f58449f38860973c497e3e6f9315ff4895`，当前明确为 `COMMITTED / NOT PUSHED`。它新增 PDF/DOCX multipart 上传、5 MiB 与签名/ZIP 条目校验、owner-scoped metadata/download，以及 `resume_file` 原件持久化；上传在一个事务内创建 Resume/Version（或既有 Resume 的下一个 DRAFT Version）与文件，复制和删除沿用版本 owner/FK 边界。上传不会自动生成 ResumeContentItem，Application 仍只绑定 `FINALIZED` 的历史 ResumeVersion。
+
+曾出现全局 Axios 默认 `Content-Type: application/json` 导致 multipart 请求返回 415；当前增量移除该全局默认值，使浏览器为 `FormData` 设置 boundary。用户已重新实际上传并确认 Resume Upload 成功；本轮主控未再次执行浏览器上传。
+
+2026-09-07 full Maven artifact 的 **327/327 PASS**，以及 `ResumeFileIntegrationTests` 15/15、`ResumeIntegrationTests` 9/9、`ApplicationIntegrationTests` 8/8、`DatabaseSchemaIntegrationTests` 6/6，均是历史 Closing evidence；本轮没有重新执行这些测试，不能把它们表述为本轮验证结果。
 
 ## Milestone 6C 历史基线
 
@@ -193,4 +201,4 @@ M6B 当时将正式 AI 功能数从 1 增至 2；当时距课程最低 3 个仍�
 
 ## 下一步建议
 
-M7 已完成 checkpoint 并 push，状态为 `FROZEN / COMMITTED / PUSHED`。本次任务结束，不启动新的功能 milestone。
+M7 已完成 checkpoint 并 push，状态为 `FROZEN / COMMITTED / PUSHED`。Resume File 已在 feature branch 本地 commit，状态为 `COMMITTED / NOT PUSHED`；`009` 是否应用到目标数据库仍需按实际 schema 单独确认。
