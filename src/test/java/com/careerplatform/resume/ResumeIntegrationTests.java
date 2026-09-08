@@ -81,6 +81,7 @@ class ResumeIntegrationTests {
     void cleanUp() {
         for (Long userId : createdUserIds) {
             // Resume children must be removed in foreign-key order.
+            jdbcTemplate.update("DELETE FROM resume_file WHERE user_id = ?", userId);
             jdbcTemplate.update("DELETE FROM resume_content_item WHERE user_id = ?", userId);
             jdbcTemplate.update("DELETE FROM resume_version WHERE user_id = ?", userId);
             jdbcTemplate.update("DELETE FROM resume WHERE user_id = ?", userId);

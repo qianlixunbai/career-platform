@@ -42,6 +42,7 @@
               <span class="muted">生成会从当前共享基础档案创建新的 DRAFT 版本，不会覆盖旧版。</span>
             </div>
             <div class="heading-actions">
+              <el-button type="primary" @click="openUploadDialog">上传新版本</el-button>
               <el-button @click="openVersionDialog('create')">新建空白 DRAFT</el-button>
               <el-button type="primary" @click="openVersionDialog('generate')">从基础档案生成新的 DRAFT</el-button>
             </div>
@@ -114,6 +115,37 @@
               class="readonly-alert"
             />
 
+            <section class="resume-file-section">
+              <div class="section-heading items-heading">
+                <div>
+                  <h3>原始简历文件</h3>
+                  <span class="muted">可查看当前版本上传的 PDF / DOCX 原文件。</span>
+                </div>
+              </div>
+              <div v-loading="fileMetadataLoading" class="file-panel">
+                <div v-if="selectedFileMetadata" class="file-details">
+                  <div class="file-details__name" :title="selectedFileMetadata.originalFilename">
+                    {{ selectedFileMetadata.originalFilename }}
+                  </div>
+                  <div class="file-details__meta">
+                    {{ formatFileType(selectedFileMetadata) }} · {{ formatFileSize(selectedFileMetadata.fileSize) }}
+                  </div>
+                  <el-button
+                    type="primary"
+                    plain
+                    :loading="downloadingFile"
+                    @click="downloadSelectedFile"
+                  >
+                    下载
+                  </el-button>
+                </div>
+                <span v-else-if="!fileMetadataLoading && fileMetadataLoadFailed" class="muted">
+                  文件信息加载失败，请稍后重新选择该版本重试
+                </span>
+                <span v-else-if="!fileMetadataLoading" class="muted">当前版本没有上传原始文件</span>
+              </div>
+            </section>
+
             <div class="section-heading items-heading">
               <div>
                 <h3>内容条目</h3>
@@ -162,6 +194,43 @@
       </template>
     </el-dialog>
 
+    <el-dialog
+      v-model="uploadDialogVisible"
+      title="上传新版本"
+      width="min(500px, calc(100vw - 32px))"
+      destroy-on-close
+      :close-on-click-modal="!uploadingVersion"
+      :close-on-press-escape="!uploadingVersion"
+      :show-close="!uploadingVersion"
+      @closed="resetUploadDialog"
+    >
+      <el-form label-position="top" @submit.prevent="submitUploadVersion">
+        <el-form-item label="原始简历文件" required>
+          <el-upload
+            v-model:file-list="uploadFileList"
+            class="resume-upload"
+            accept=".pdf,.docx"
+            :auto-upload="false"
+            :limit="1"
+            :disabled="uploadingVersion"
+            :on-exceed="handleUploadExceed"
+          >
+            <el-button :disabled="uploadingVersion">选择文件</el-button>
+            <template #tip>
+              <div class="el-upload__tip">仅支持 PDF / DOCX，文件大小不超过 5 MiB。</div>
+            </template>
+          </el-upload>
+        </el-form-item>
+        <el-form-item label="版本标签">
+          <el-input v-model="uploadForm.label" maxlength="200" placeholder="可选，例如：校招前端版本" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button :disabled="uploadingVersion" @click="closeUploadDialog">取消</el-button>
+        <el-button type="primary" :loading="uploadingVersion" @click="submitUploadVersion">上传</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="itemDialogVisible" :title="editingItemId === null ? '新增内容条目' : '编辑内容条目'" width="620px" destroy-on-close>
       <el-form ref="itemFormRef" :model="itemForm" :rules="itemRules" label-position="top" @submit.prevent="saveItem">
         <div class="form-grid">
@@ -192,7 +261,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadUserFile } from 'element-plus'
 
 import {
   copyResumeVersion,
@@ -203,16 +272,20 @@ import {
   finalizeResumeVersion,
   generateResumeVersion,
   getResume,
+  getResumeFile,
   listResumeItems,
   listResumeVersions,
+  downloadResumeFile,
   updateResume,
   updateResumeItem,
   updateResumeVersion,
+  uploadResumeVersion,
 } from '@/api/resume'
 import type {
   Resume,
   ResumeContentItem,
   ResumeContentItemRequest,
+  ResumeFileMetadata,
   ResumeRequest,
   ResumeSectionType,
   ResumeVersion,
@@ -229,13 +302,18 @@ const versions = ref<ResumeVersion[]>([])
 const selectedVersionId = ref<number | null>(null)
 const selectedVersion = ref<ResumeVersion | null>(null)
 const items = ref<ResumeContentItem[]>([])
+const selectedFileMetadata = ref<ResumeFileMetadata | null>(null)
 
 const loading = ref(false)
 const versionsLoading = ref(false)
 const itemsLoading = ref(false)
+const fileMetadataLoading = ref(false)
+const fileMetadataLoadFailed = ref(false)
 const savingResume = ref(false)
 const savingVersion = ref(false)
 const savingItem = ref(false)
+const uploadingVersion = ref(false)
+const downloadingFile = ref(false)
 
 const versionDialogVisible = ref(false)
 const versionAction = ref<'create' | 'generate' | 'copy'>('create')
@@ -244,9 +322,14 @@ const versionFormRef = ref<FormInstance>()
 const itemDialogVisible = ref(false)
 const editingItemId = ref<number | null>(null)
 const itemFormRef = ref<FormInstance>()
+const uploadDialogVisible = ref(false)
+const uploadFileList = ref<UploadUserFile[]>([])
+const uploadForm = reactive({ label: '' })
 
 const versionForm = reactive<ResumeVersionRequest>({ label: '' })
 const itemForm = reactive<ResumeContentItemRequest>({ sectionType: 'PROFILE', title: '', content: '', sortOrder: 0 })
+
+let selectionRequestId = 0
 
 const sectionOptions: Array<{ value: ResumeSectionType; label: string }> = [
   { value: 'PROFILE', label: '基本资料' },
@@ -270,6 +353,8 @@ const versionDialogTitle = computed(() => {
   return '新建空白 DRAFT'
 })
 
+const MAX_RESUME_FILE_SIZE = 5 * 1024 * 1024
+
 function sectionLabel(value: ResumeSectionType): string {
   return sectionOptions.find((option) => option.value === value)?.label ?? value
 }
@@ -286,6 +371,36 @@ function formatDate(value?: string | null): string {
   return value ? value.replace('T', ' ').slice(0, 16) : '—'
 }
 
+function formatFileType(metadata: ResumeFileMetadata): string {
+  const filename = metadata.originalFilename.toLowerCase()
+  if (metadata.contentType === 'application/pdf' || filename.endsWith('.pdf')) return 'PDF'
+  if (
+    metadata.contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    filename.endsWith('.docx')
+  ) {
+    return 'DOCX'
+  }
+  return metadata.contentType || '未知格式'
+}
+
+function formatFileSize(size: number): string {
+  if (!Number.isFinite(size) || size < 0) return '未知大小'
+  if (size < 1024) return `${size} B`
+  const kilobytes = size / 1024
+  if (kilobytes < 1024) {
+    return `${Number.isInteger(kilobytes) ? kilobytes : kilobytes.toFixed(1)} KB`
+  }
+  const megabytes = kilobytes / 1024
+  return `${Number.isInteger(megabytes) ? megabytes : megabytes.toFixed(1)} MB`
+}
+
+function getInitialVersionIdFromQuery(): number | undefined {
+  const raw = route.query.versionId
+  const value = Array.isArray(raw) ? raw[0] : raw
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
 async function load(): Promise<void> {
   const id = resumeId.value
   if (!Number.isInteger(id) || id <= 0) return
@@ -294,7 +409,7 @@ async function load(): Promise<void> {
     const loadedResume = await getResume(id)
     resume.value = loadedResume
     Object.assign(resumeForm, { name: loadedResume.name, description: loadedResume.description ?? '' })
-    await loadVersions()
+    await loadVersions(getInitialVersionIdFromQuery())
   } catch {
     // The response interceptor presents the structured API error.
   } finally {
@@ -313,9 +428,14 @@ async function loadVersions(preferredId?: number): Promise<void> {
     if (next) {
       await selectVersion(next)
     } else {
+      selectionRequestId += 1
       selectedVersionId.value = null
       selectedVersion.value = null
       items.value = []
+      selectedFileMetadata.value = null
+      fileMetadataLoadFailed.value = false
+      itemsLoading.value = false
+      fileMetadataLoading.value = false
     }
   } catch {
     // The response interceptor presents the structured API error.
@@ -325,16 +445,34 @@ async function loadVersions(preferredId?: number): Promise<void> {
 }
 
 async function selectVersion(row: ResumeVersion): Promise<void> {
+  const requestId = ++selectionRequestId
   selectedVersionId.value = row.id
   selectedVersion.value = row
   versionForm.label = row.label ?? ''
   itemsLoading.value = true
+  fileMetadataLoading.value = true
+  items.value = []
+  selectedFileMetadata.value = null
+  fileMetadataLoadFailed.value = false
   try {
-    items.value = await listResumeItems(resumeId.value, row.id)
-  } catch {
-    // The response interceptor presents the structured API error.
+    const [loadedItems, loadedFileMetadata] = await Promise.allSettled([
+      listResumeItems(resumeId.value, row.id),
+      getResumeFile(resumeId.value, row.id),
+    ])
+    if (requestId !== selectionRequestId) return
+    if (loadedItems.status === 'fulfilled') {
+      items.value = loadedItems.value
+    }
+    if (loadedFileMetadata.status === 'fulfilled') {
+      selectedFileMetadata.value = loadedFileMetadata.value
+    } else {
+      fileMetadataLoadFailed.value = true
+    }
   } finally {
-    itemsLoading.value = false
+    if (requestId === selectionRequestId) {
+      itemsLoading.value = false
+      fileMetadataLoading.value = false
+    }
   }
 }
 
@@ -365,6 +503,96 @@ function openVersionDialog(action: 'create' | 'generate' | 'copy', source?: Resu
   copySourceId.value = action === 'copy' ? source?.id ?? null : null
   versionForm.label = ''
   versionDialogVisible.value = true
+}
+
+function openUploadDialog(): void {
+  resetUploadDialog()
+  uploadDialogVisible.value = true
+}
+
+function closeUploadDialog(): void {
+  uploadDialogVisible.value = false
+  resetUploadDialog()
+}
+
+function resetUploadDialog(): void {
+  uploadFileList.value = []
+  uploadForm.label = ''
+}
+
+function handleUploadExceed(): void {
+  ElMessage.warning('一次只能选择一个文件，请先移除当前文件')
+}
+
+function getValidatedUploadFile(): File | null {
+  const file = uploadFileList.value[0]?.raw
+  if (!file || file.size <= 0) {
+    ElMessage.warning('请选择要上传的 PDF 或 DOCX 文件')
+    return null
+  }
+
+  const filename = file.name.toLowerCase()
+  if (!filename.endsWith('.pdf') && !filename.endsWith('.docx')) {
+    ElMessage.warning('仅支持上传 PDF 或 DOCX 文件')
+    return null
+  }
+
+  if (file.size > MAX_RESUME_FILE_SIZE) {
+    ElMessage.warning('文件大小不能超过 5 MiB')
+    return null
+  }
+
+  return file
+}
+
+async function submitUploadVersion(): Promise<void> {
+  if (uploadingVersion.value || !resume.value) return
+  const file = getValidatedUploadFile()
+  if (!file) return
+
+  uploadingVersion.value = true
+  try {
+    const uploaded = await uploadResumeVersion(resume.value.id, file, uploadForm.label.trim() || undefined)
+    closeUploadDialog()
+    ElMessage.success('简历文件版本已上传')
+    await loadVersions(uploaded.version.id)
+  } catch {
+    // The response interceptor presents the structured API error.
+  } finally {
+    uploadingVersion.value = false
+  }
+}
+
+async function downloadSelectedFile(): Promise<void> {
+  const currentResume = resume.value
+  const currentVersion = selectedVersion.value
+  const metadata = selectedFileMetadata.value
+  if (!currentResume || !currentVersion || !metadata || downloadingFile.value) return
+
+  const versionId = currentVersion.id
+  const filename = metadata.originalFilename
+  let objectUrl: string | null = null
+  let anchor: HTMLAnchorElement | null = null
+  downloadingFile.value = true
+  try {
+    const blob = await downloadResumeFile(currentResume.id, versionId)
+    objectUrl = URL.createObjectURL(blob)
+    anchor = document.createElement('a')
+    anchor.href = objectUrl
+    anchor.download = filename.replace(/[\\/:*?"<>|]/g, '_')
+    anchor.style.display = 'none'
+    document.body.appendChild(anchor)
+    anchor.click()
+  } catch {
+    // The response interceptor presents the structured API error.
+  } finally {
+    anchor?.remove()
+    if (objectUrl) {
+      const urlToRevoke = objectUrl
+      window.setTimeout(() => URL.revokeObjectURL(urlToRevoke), 0)
+    }
+    downloadingFile.value = false
+  }
 }
 
 async function submitVersionAction(): Promise<void> {
@@ -523,7 +751,7 @@ onMounted(load)
 .section-heading--top { align-items: flex-start; }
 .section-heading h3 { margin: 0 0 5px; font-size: 16px; color: var(--el-text-color-primary); }
 .muted { color: var(--el-text-color-secondary); font-size: 13px; }
-.heading-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.heading-actions { display: flex; min-width: 0; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .table-wrap { min-height: 180px; }
 .version-meta-form { margin: 0 0 10px; }
 .version-meta-form :deep(.el-form-item) { margin-bottom: 10px; }
@@ -531,9 +759,14 @@ onMounted(load)
 .items-heading { margin-top: 24px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
 .full-width { width: 100%; }
+.file-panel { min-height: 64px; padding: 14px 16px; border: 1px solid var(--el-border-color-lighter); border-radius: 6px; }
+.file-details { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.file-details__name { min-width: 0; max-width: 100%; overflow-wrap: anywhere; color: var(--el-text-color-primary); font-weight: 600; }
+.file-details__meta { color: var(--el-text-color-secondary); font-size: 13px; }
+.resume-upload { max-width: 100%; }
 @media (max-width: 760px) {
   .page-heading, .section-heading { align-items: flex-start; flex-direction: column; }
-  .heading-actions { justify-content: flex-start; }
+  .heading-actions { width: 100%; justify-content: flex-start; }
   .form-grid { grid-template-columns: 1fr; }
   .version-meta-form { display: block; }
 }

@@ -17,6 +17,32 @@ export interface ResumeRequest {
   description?: string
 }
 
+export interface ResumeFileMetadata {
+  versionId: number
+  originalFilename: string
+  contentType: string
+  fileSize: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface ResumeUploadRequest {
+  name: string
+  description?: string
+  versionLabel?: string
+}
+
+export interface ResumeUploadResponse {
+  resume: Resume
+  version: ResumeVersion
+  file: ResumeFileMetadata
+}
+
+export interface ResumeVersionUploadResponse {
+  version: ResumeVersion
+  file: ResumeFileMetadata
+}
+
 export interface ResumeVersion {
   id: number
   resumeId: number

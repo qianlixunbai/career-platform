@@ -44,9 +44,7 @@ export function getApiErrorMessage(error: unknown, fallback = '请求失败，�
 export const apiClient: AxiosInstance = axios.create({
   baseURL: '/api',
   timeout: 15_000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+
 })
 
 apiClient.interceptors.request.use((config) => {

@@ -1,11 +1,17 @@
+import axios from 'axios'
+
 import client from '@/api/client'
 import type {
   Resume,
   ResumeContentItem,
   ResumeContentItemRequest,
+  ResumeFileMetadata,
   ResumeRequest,
+  ResumeUploadRequest,
+  ResumeUploadResponse,
   ResumeVersion,
   ResumeVersionRequest,
+  ResumeVersionUploadResponse,
 } from '@/types/resume'
 
 export async function listResumes(): Promise<Resume[]> {
@@ -30,6 +36,17 @@ export async function updateResume(resumeId: number, payload: ResumeRequest): Pr
 
 export async function deleteResume(resumeId: number): Promise<void> {
   await client.delete(`/v1/resumes/${resumeId}`)
+}
+
+export async function uploadResume(file: File, payload: ResumeUploadRequest): Promise<ResumeUploadResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('name', payload.name)
+  if (payload.description) formData.append('description', payload.description)
+  if (payload.versionLabel) formData.append('versionLabel', payload.versionLabel)
+
+  const response = await client.post<ResumeUploadResponse>('/v1/resumes/upload', formData)
+  return response.data
 }
 
 export async function listResumeVersions(resumeId: number): Promise<ResumeVersion[]> {
@@ -85,6 +102,45 @@ export async function finalizeResumeVersion(resumeId: number, versionId: number)
 
 export async function deleteResumeVersion(resumeId: number, versionId: number): Promise<void> {
   await client.delete(`/v1/resumes/${resumeId}/versions/${versionId}`)
+}
+
+export async function uploadResumeVersion(
+  resumeId: number,
+  file: File,
+  label?: string,
+): Promise<ResumeVersionUploadResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (label) formData.append('label', label)
+
+  const response = await client.post<ResumeVersionUploadResponse>(
+    `/v1/resumes/${resumeId}/versions/upload`,
+    formData,
+  )
+  return response.data
+}
+
+export async function getResumeFile(resumeId: number, versionId: number): Promise<ResumeFileMetadata | null> {
+  try {
+    const response = await client.get<ResumeFileMetadata>(
+      `/v1/resumes/${resumeId}/versions/${versionId}/file`,
+      { silentStatuses: [404] },
+    )
+    return response.data
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null
+    }
+    throw error
+  }
+}
+
+export async function downloadResumeFile(resumeId: number, versionId: number): Promise<Blob> {
+  const response = await client.get<Blob>(
+    `/v1/resumes/${resumeId}/versions/${versionId}/file/download`,
+    { responseType: 'blob' },
+  )
+  return response.data
 }
 
 export async function listResumeItems(resumeId: number, versionId: number): Promise<ResumeContentItem[]> {

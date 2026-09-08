@@ -7,6 +7,7 @@ import com.careerplatform.learning.mapper.LearningTaskMapper;
 import com.careerplatform.learning.mapper.StudyRecordMapper;
 import com.careerplatform.learning.mapper.WeeklyReviewMapper;
 import com.careerplatform.resume.mapper.ResumeContentItemMapper;
+import com.careerplatform.resume.mapper.ResumeFileMapper;
 import com.careerplatform.resume.mapper.ResumeMapper;
 import com.careerplatform.resume.mapper.ResumeVersionMapper;
 import com.careerplatform.application.mapper.ApplicationMapper;
@@ -273,6 +274,9 @@ class DatabaseSchemaIntegrationTests {
     @Autowired
     private ResumeContentItemMapper resumeContentItemMapper;
 
+    @Autowired
+    private ResumeFileMapper resumeFileMapper;
+
     @Autowired private ApplicationMapper applicationMapper;
     @Autowired private ApplicationStageHistoryMapper applicationStageHistoryMapper;
     @Autowired private AssessmentMapper assessmentMapper;
@@ -293,8 +297,8 @@ class DatabaseSchemaIntegrationTests {
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'",
                 Integer.class);
         // M5B introduced six Application tables (28 total at that checkpoint).
-        // M7 adds learning_material_chunk; the current global schema now has 29 tables.
-        assertThat(businessTableCount).isEqualTo(29);
+        // M7 adds learning_material_chunk and R1 adds resume_file; the current global schema now has 30 tables.
+        assertThat(businessTableCount).isEqualTo(30);
 
         List<String> foreignKeys = jdbcTemplate.queryForList(
                 "SELECT constraint_name FROM information_schema.referential_constraints "
@@ -536,6 +540,90 @@ class DatabaseSchemaIntegrationTests {
         assertThat(resumeMapper).isNotNull();
         assertThat(resumeVersionMapper).isNotNull();
         assertThat(resumeContentItemMapper).isNotNull();
+    }
+
+    @Test
+    void milestoneR1ResumeFileSchemaAndMapperShouldExistInRealMySql() {
+        List<String> tables = jdbcTemplate.queryForList(
+                "SELECT table_name FROM information_schema.tables "
+                        + "WHERE table_schema = DATABASE() AND table_name = 'resume_file'",
+                String.class
+        );
+        List<String> columns = jdbcTemplate.queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_schema = DATABASE() AND table_name = 'resume_file' "
+                        + "ORDER BY ordinal_position",
+                String.class
+        );
+        String fileDataType = jdbcTemplate.queryForObject(
+                "SELECT data_type FROM information_schema.columns "
+                        + "WHERE table_schema = DATABASE() AND table_name = 'resume_file' "
+                        + "AND column_name = 'file_data'",
+                String.class
+        );
+        List<String> uniqueResumeVersionColumns = jdbcTemplate.queryForList(
+                "SELECT column_name FROM information_schema.statistics "
+                        + "WHERE table_schema = DATABASE() AND table_name = 'resume_file' "
+                        + "AND index_name = 'uk_resume_file_resume_version_id' AND non_unique = 0 "
+                        + "ORDER BY seq_in_index",
+                String.class
+        );
+        List<String> ownerIndexColumns = jdbcTemplate.queryForList(
+                "SELECT column_name FROM information_schema.statistics "
+                        + "WHERE table_schema = DATABASE() AND table_name = 'resume_file' "
+                        + "AND index_name = 'idx_resume_file_user_version' "
+                        + "ORDER BY seq_in_index",
+                String.class
+        );
+        List<String> versionOwnerIndexColumns = jdbcTemplate.queryForList(
+                "SELECT column_name FROM information_schema.statistics "
+                        + "WHERE table_schema = DATABASE() AND table_name = 'resume_file' "
+                        + "AND index_name = 'idx_resume_file_version_user' "
+                        + "ORDER BY seq_in_index",
+                String.class
+        );
+        List<String> ownerForeignKeyColumns = jdbcTemplate.queryForList(
+                "SELECT column_name FROM information_schema.key_column_usage "
+                        + "WHERE constraint_schema = DATABASE() AND table_name = 'resume_file' "
+                        + "AND constraint_name = 'fk_resume_file_version_owner' "
+                        + "ORDER BY ordinal_position",
+                String.class
+        );
+        List<String> ownerReferencedColumns = jdbcTemplate.queryForList(
+                "SELECT referenced_column_name FROM information_schema.key_column_usage "
+                        + "WHERE constraint_schema = DATABASE() AND table_name = 'resume_file' "
+                        + "AND constraint_name = 'fk_resume_file_version_owner' "
+                        + "ORDER BY ordinal_position",
+                String.class
+        );
+        List<String> ownerReferencedTables = jdbcTemplate.queryForList(
+                "SELECT referenced_table_name FROM information_schema.key_column_usage "
+                        + "WHERE constraint_schema = DATABASE() AND table_name = 'resume_file' "
+                        + "AND constraint_name = 'fk_resume_file_version_owner' "
+                        + "ORDER BY ordinal_position",
+                String.class
+        );
+        List<String> foreignKeyDeleteRules = jdbcTemplate.queryForList(
+                "SELECT delete_rule FROM information_schema.referential_constraints "
+                        + "WHERE constraint_schema = DATABASE() AND table_name = 'resume_file' "
+                        + "AND constraint_name IN ('fk_resume_file_user', 'fk_resume_file_version_owner') "
+                        + "ORDER BY constraint_name",
+                String.class
+        );
+
+        assertThat(tables).containsExactly("resume_file");
+        assertThat(columns).containsExactly(
+                "id", "user_id", "resume_version_id", "original_filename", "content_type",
+                "file_size", "file_data", "created_at", "updated_at");
+        assertThat(fileDataType).isEqualTo("mediumblob");
+        assertThat(uniqueResumeVersionColumns).containsExactly("resume_version_id");
+        assertThat(ownerIndexColumns).containsExactly("user_id", "resume_version_id");
+        assertThat(versionOwnerIndexColumns).containsExactly("resume_version_id", "user_id");
+        assertThat(ownerForeignKeyColumns).containsExactly("resume_version_id", "user_id");
+        assertThat(ownerReferencedTables).containsExactly("resume_version", "resume_version");
+        assertThat(ownerReferencedColumns).containsExactly("id", "user_id");
+        assertThat(foreignKeyDeleteRules).containsExactly("NO ACTION", "NO ACTION");
+        assertThat(resumeFileMapper).isNotNull();
     }
 
     private record LearningForeignKeyColumn(

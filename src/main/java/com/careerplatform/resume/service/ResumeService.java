@@ -19,11 +19,13 @@ import com.careerplatform.resume.dto.ResumeRequest;
 import com.careerplatform.resume.dto.ResumeVersionRequest;
 import com.careerplatform.resume.entity.Resume;
 import com.careerplatform.resume.entity.ResumeContentItem;
+import com.careerplatform.resume.entity.ResumeFile;
 import com.careerplatform.resume.entity.ResumeVersion;
 import com.careerplatform.resume.enums.ResumeSectionType;
 import com.careerplatform.resume.enums.ResumeSourceType;
 import com.careerplatform.resume.enums.ResumeVersionStatus;
 import com.careerplatform.resume.mapper.ResumeContentItemMapper;
+import com.careerplatform.resume.mapper.ResumeFileMapper;
 import com.careerplatform.resume.mapper.ResumeMapper;
 import com.careerplatform.resume.mapper.ResumeVersionMapper;
 import org.springframework.stereotype.Service;
@@ -37,15 +39,18 @@ public class ResumeService {
     private final ResumeMapper resumeMapper;
     private final ResumeVersionMapper resumeVersionMapper;
     private final ResumeContentItemMapper resumeContentItemMapper;
+    private final ResumeFileMapper resumeFileMapper;
     private final ProfileService profileService;
 
     public ResumeService(ResumeMapper resumeMapper,
                          ResumeVersionMapper resumeVersionMapper,
                          ResumeContentItemMapper resumeContentItemMapper,
+                         ResumeFileMapper resumeFileMapper,
                          ProfileService profileService) {
         this.resumeMapper = resumeMapper;
         this.resumeVersionMapper = resumeVersionMapper;
         this.resumeContentItemMapper = resumeContentItemMapper;
+        this.resumeFileMapper = resumeFileMapper;
         this.profileService = profileService;
     }
 
@@ -92,6 +97,9 @@ public class ResumeService {
 
         // The parent lock protects the complete child cleanup. Delete in FK order.
         for (ResumeVersion version : versions) {
+            resumeFileMapper.delete(new LambdaQueryWrapper<ResumeFile>()
+                    .eq(ResumeFile::getResumeVersionId, version.getId())
+                    .eq(ResumeFile::getUserId, userId));
             resumeContentItemMapper.delete(new LambdaQueryWrapper<ResumeContentItem>()
                     .eq(ResumeContentItem::getVersionId, version.getId())
                     .eq(ResumeContentItem::getUserId, userId));
@@ -179,6 +187,20 @@ public class ResumeService {
             copiedItem.setSortOrder(sourceItem.getSortOrder());
             resumeContentItemMapper.insert(copiedItem);
         }
+        ResumeFile sourceFile = resumeFileMapper.selectOne(
+                new LambdaQueryWrapper<ResumeFile>()
+                        .eq(ResumeFile::getResumeVersionId, source.getId())
+                        .eq(ResumeFile::getUserId, userId));
+        if (sourceFile != null) {
+            ResumeFile copiedFile = new ResumeFile();
+            copiedFile.setUserId(userId);
+            copiedFile.setResumeVersionId(target.getId());
+            copiedFile.setOriginalFilename(sourceFile.getOriginalFilename());
+            copiedFile.setContentType(sourceFile.getContentType());
+            copiedFile.setFileSize(sourceFile.getFileSize());
+            copiedFile.setFileData(sourceFile.getFileData() == null ? null : sourceFile.getFileData().clone());
+            resumeFileMapper.insert(copiedFile);
+        }
         return requireOwnedVersion(resumeId, target.getId(), userId);
     }
 
@@ -207,6 +229,9 @@ public class ResumeService {
         lockOwnedResume(resumeId, userId);
         ResumeVersion version = lockOwnedVersion(resumeId, versionId, userId);
         requireDraft(version);
+        resumeFileMapper.delete(new LambdaQueryWrapper<ResumeFile>()
+                .eq(ResumeFile::getResumeVersionId, versionId)
+                .eq(ResumeFile::getUserId, userId));
         resumeContentItemMapper.delete(new LambdaQueryWrapper<ResumeContentItem>()
                 .eq(ResumeContentItem::getVersionId, versionId)
                 .eq(ResumeContentItem::getUserId, userId));
