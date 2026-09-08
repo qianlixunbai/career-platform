@@ -59,7 +59,7 @@ AI 只插入“建议和候选”环节；确认前不写正式业务数据。�
 
 ### 1. JD Parse + Evidence
 
-读取用户保存的原始 JD，生成岗位要求候选、技能匹配和可回溯的 `evidenceQuote`。解析结果是临时候选，不直接写入 `job_requirement`；用户可审核、编辑、选择后，Java Service 会重新校验 evidence 子串、技能归一化、重复项和 JD fingerprint，再在事务中追加确认项。
+读取用户保存的原始 JD，生成岗位要求候选、技能匹配和可回溯的 `evidenceQuote`。Java Service 在解析阶段校验 evidence 子串、技能名归一化与候选重复项；解析结果是临时候选，不直接写入 `job_requirement`。用户审核、编辑和选择后，确认阶段会校验 JD fingerprint、重复项、Skill 关联规则与正式业务字段，再在事务中追加确认项。
 
 ### 2. Learning Planning + Weekly Review
 
