@@ -1,208 +1,161 @@
-# 系统架构
+# 系统架构与设计决策
 
-## M7 / P2-A 已冻结基线（FROZEN / COMMITTED / PUSHED）
+本文记录 Career Platform 的分层结构，以及几个关键设计点的取舍原因。业务范围见 [业务设计说明](DESIGN.md)，表结构见 [数据库设计](DATABASE.md)。
 
-RAG 主链路为 `parse → chunk → embedding → owner/plan-scoped retrieval → bounded prompt → no-tools chat → trusted Java citations`；原件和 Chunk 仍受 `LearningMaterial` owner/Plan 边界约束，问答不直接信任模型返回的来源字段。
+## 1. 分层结构
 
-- 复用 LearningMaterial 的 Plan/可选 Task 归属关系；原有链接资料继续作为 METADATA 使用。原件使用 `learning_material.file_content MEDIUMBLOB`，普通 Mapper 查询不读取 BLOB，DTO 永不返回原件 bytes。选择 MySQL 存储是为了在现有删除事务中原子删除原件与资料，并由 owner-aware FK 级联清理 Chunk，无文件路径或双写清理队列。
-- Parser：PDFBox 3.0.8 读取 PDF 实际页码；DOCX 采用 JDK ZIP + StAX 读取正文段落（包括表格段落），无稳定页码，不进行 OCR、页码推算或外部关系抓取。限制 5 MiB 文件、100 PDF 页、10 MiB ZIP 展开、200 ZIP entries、100000 文本字符、1000 字符/Chunk、128 Chunk/文档。PDFBox 依据：[Apache 官方发布](https://pdfbox.apache.org/download)。
-- 上传：owner 校验 → 校验/解析 → 短事务写原件与 UPLOADED → 事务外 Embedding → 短事务替换 Chunk 并设 READY；失败保留原件供重试，首次索引失败为 FAILED，已有 READY 的重建失败保留旧索引。索引和删除均先锁 Plan，再操作 Material；成功重建生成新 Chunk ID。每计划最多 20 份文件、100 MiB、1000 个 READY Chunk。
-- `EmbeddingGateway` 是独立生产边界，使用显式配置的 OpenAI-compatible HTTPS endpoint/model；JDK transport 不跟随跳转、不重试、每批最多 16 段、完整响应最多 1 MiB、单次请求 30 秒。endpoint/model/version 的 SHA-256 作为向量身份，客户端不能选择。零向量、非法数值、维度不一致均拒绝；无配置不创建全局 EmbeddingModel，也不影响传统系统启动。
-- `RagService` 先验证当前 Plan owner，通过 SQL JOIN 限定 user/plan/READY/embedding identity，再在 Java 计算 cosine。最多读取 1000 行，索引发布事务限制每计划 READY Chunk 总数不超过 1000；Top-K 固定 4，threshold=0.55，证据上下文最多 4000 字符。此为 course-scale 实现，不适合无限文档库；不引入外部 vector DB。
-- 模型仅收到不可信问题、chunk 文本和本次 c1～c4 keys。`RagChatGateway` 使用独立 Spring AI Flash 实例、no-tools、retry=0，并复用已有固定 endpoint model factory；不会修改 M6A/M6B gateway 或注册全局工具。BeanOutputConverter 只生成 schema，JSON 解析走严格类型校验并禁止原文日志泄露。
-- 模型只返回 answer/citationKeys/evidenceInsufficient。Java 从本次检索集重建 materialId/name、chunkId、位置、页码和原文，未知 key 返回安全 AI_INVALID_RESPONSE。无命中不调用 Chat；有相似片段但没有问题所需事实时要求模型返回不足依据。来源可追溯不等同于自动证明每句话语义正确，阈值和 Prompt 不能替代模型质量评估。
-- 返回前再次 owner-check 并确认 Chunk 仍存在；原文查看、原件下载、删除、重建均 owner-scoped。问答不写任何业务数据。所有文档/问题均为 UNTRUSTED DATA，没有 Tool Calling、自动计划写入或 Pro fallback。
-
-当前门禁、限制和证据见 [M7 Closing](M7_RAG_CLOSING_VERIFICATION.md)。外部 Tech Lead 已给出最终 GO；M7 feature checkpoint 为 `6e4db93ccae7b4efc9530c8950926d257eb21aaf`，已 commit 并 push 到 `origin/main`。Closing 保留提交前历史证据。以下 M6C/M6B/M6A 段落中的“未实现 RAG”描述其历史范围。
-
-## 当前增量：Resume File（COMMITTED / NOT PUSHED）
-
-本地 feature checkpoint `b44993f58449f38860973c497e3e6f9315ff4895` 在既有 Resume 三层资源上增加 `resume_file`：`POST /api/v1/resumes/upload` 通过 `multipart/form-data` 一次创建 Resume、DRAFT `ResumeVersion` 与文件；`POST /api/v1/resumes/{resumeId}/versions/upload` 为既有 Resume 创建下一个 DRAFT 版本并保存文件；元数据查询与 owner-scoped 下载使用独立 GET 端点。`ResumeFileValidator` 限制 5 MiB，只接受 PDF/DOCX，并检查扩展名、PDF 签名或 DOCX 必需 ZIP 条目；不会把客户端 MIME 或文件名直接当作可信格式。
-
-上传链路为：认证 owner/字段校验 → 文件读取与格式校验 → `@Transactional` 创建 Resume/Version 并写入 `resume_file` → 返回不含 BLOB 的元数据。普通元数据查询不读取 `file_data MEDIUMBLOB`，下载才执行显式 owner-scoped 内容读取并返回安全的 `Content-Disposition`、`nosniff` 与无缓存响应。复制版本会复制到独立文件行，DRAFT 版本或 Resume 删除时按 FK 顺序清理文件；上传不会自动生成 `ResumeContentItem`。本增量已在 feature branch 本地 commit，尚未 push。
-
-## 文档状态
-
-本文记录截至 2026-09-08 的实际架构状态。当前 SQL/源码规模为 29 张业务表 + 1 张技术表 `learning_material_chunk`（共 30 张 DDL 表）、27 个精确 `@RestController`（不含 Advice）、21 个 routed frontend pages、4 个正式 AI 功能。Milestone 2、3、4、5A 与 5B 均保留既有冻结 checkpoint。Milestone 6A AI Foundation + JD Structured Parse 已完成、冻结，并以 checkpoint `07712a687685e368e35e5c04bb0f294ae218c265` 固化并 push 到 `main`。Milestone 6B AI Learning Planning + Weekly Review 已完成、冻结，状态为 `FROZEN / COMMITTED / PUSHED`，功能 checkpoint 为 `805a3801af76e4e88434e52e154d2069ad3c4d1b`，已 push 到 `origin/main`。Closing 历史证据：用户通过 IDEA Full Maven Test 取得 155 项全绿、事务集成类 3/3 PASS；Astra 对用户启动的 localhost backend 实际执行 DeepSeek Flash Plan/Review smoke，各一次且均 PASS。以上为 M6B checkpoint 历史记录；M7 验收历史证据见专项报告，当前冻结状态见本节。
-
-## Milestone 6C — Job Discovery 架构（LLM → Tool → Search Gateway → Tavily）
-
-M6C 在独立路径引入 Spring AI Tool Calling；下文 M6A/M6B 的 no-tools 说明继续适用于原有两个功能。M6C 当前状态为 `FROZEN / COMMITTED / PUSHED`，checkpoint 为 `915acc0d02ac173877ae49b10fff96243b236cd5`。在 M6C checkpoint 历史范围内 RAG 尚未实现；其 Real Provider Gate 为 `PASS`。详见 [M6C Closing](M6C_CLOSING_VERIFICATION.md)。
-
-```text
-CareerService.getGoal(owner) + ProfileService.listUserSkills(owner)
-  → bounded context + canonical skill keys
-  → AiToolCallingGateway (Flash, thinking disabled, retry 0)
-  → Spring AI ToolCallingManager → request-local searchJobs
-  → JobSearchGateway → fixed Tavily Search endpoint
-  → request-local JobSearchSession (opaque resultKey → provider result)
-  → AI resultKey + advice → Java reconstruction / validation
-  → bounded in-memory CandidateStore → user review
-  → explicit confirm → transaction → CareerService.createJob → commit → consume
+```mermaid
+flowchart TD
+    A["Vue 3 + TypeScript SPA"] -->|"HTTP JSON + Bearer Token"| B["Controller + Request/Response DTO"]
+    B --> C["Service：归属校验 / 业务规则 / 状态机 / 事务"]
+    C --> D["MyBatis-Plus Mapper"]
+    D --> E[("MySQL 8")]
+    C --> F["AI Gateway：结构化输出 / Tool Calling"]
+    C --> G["Embedding Gateway"]
+    C --> H["External Search Gateway"]
+    F --> I["LLM Provider"]
+    G --> J["Embedding Provider"]
+    H --> K["Search Provider"]
 ```
 
-- API：`POST /api/v1/jobs/ai/discovery`、`POST /api/v1/jobs/ai/discovery/confirm`。所有权取认证上下文，不接受客户端 userId。
-- 专用 gateway 固定 `deepseek-v4-flash` 与官方 DeepSeek endpoint，不复用带可变 default tools 的全局 ChatClient，不注册业务 Tool bean。原 `AiChatGateway`、`SpringAiChatGateway` 继续强制 `toolChoice=none`。
-- 一次 discovery 是一个逻辑 AI 流程。工具请求和工具结果后的模型分析需要 HTTP 往返：正常两次 completion，最多三次；Tavily 最多两次、每次最多十条，应用 Provider retry 为零。不会将流程数冒充实际 HTTP 调用次数。
-- `searchJobs(query, location, maxResults)` 只读。Java 限制 query 400、location 100 字符及 results 1～10；每个请求独立创建 Tool/session，不共享 resultKey map。
-- Tavily 只使用固定 `https://api.tavily.com/search`，关闭自动参数、answer 和 raw content；无客户端 endpoint、URL fetch、crawler 或额外 Provider SDK。只提供 `TAVILY_SEARCH_ENABLED`（默认 false）和 `TAVILY_API_KEY`。
-- 来源事实由 Java 从 Tavily 的真实搜索结果重建：原始 sourceUrl、网页标题、host、摘要和明确提供的日期。URL 仅 http/https，拒绝本地地址和不安全形式，本次按 canonical URL 去重。Tavily 是 discoveredBy，sourceName 取目标 host。
-- AI 输出只含 resultKey、rank、fitSummary、strengths、gaps、uncertainty、matchedSkillKeys 和 warnings。未知 resultKey 不进入候选，技能名由 Java canonical map 还原。外部标题、摘要、Goal、Skill 和用户文本都属于不可信数据。
-- 返回的 `sourceFacts`、`extractedFields`、`aiAdvice` 明确分层。候选标题是网页标题的待审核截取；公司/岗位类型可能未知；地点候选来自搜索条件，不能称为网页事实。
-- CandidateStore 的设计限额为 TTL 15 分钟、每用户 50 条、全局 1000 条。确认在存储锁内校验 owner/TTL/consumed，并在独立事务提交成功后消费；失败不消费。短暂的数据库确认串行执行，网络搜索不持锁。重启会丢失临时候选。
-- confirm 只接受 candidateId、用户选择的 companyId/jobType、title/city 和可选完整 rawJd。Java 从 store 填写 sourceUrl/sourceName/publishDate，复用现有 `CareerService.createJob()`。没有自动 Company 创建，也没有发现即保存。
-- snippet 不写入 rawJd；未粘贴完整 JD 时 rawJd 为 null，搜索摘要只在临时候选中展示，后续补全 JD 才能使用 M6A。无 migration、Redis、搜索历史、RAG、通用 Agent 或动态模型。
+后端按业务域分包：
 
-D1 诊断仅按异常类型细分 FINAL_RESPONSE_PARSE 下的 cleaner、syntax、unknown property、mapping 与其他 deserialize failure；不修改 cleaner、DTO、ObjectMapper、Prompt 或 Service 校验契约。Handler 仅记录固定 stage/rule，对外仍为 502 / AI_INVALID_RESPONSE 和固定安全消息。package-private cleaner seam 仅用于离线故障注入，生产构造器固定使用默认 cleaner，不增加 HTTP/配置入口。
-
-官方兼容性依据：[Spring AI 1.1 Tool Calling](https://docs.spring.io/spring-ai/reference/1.1/api/tools.html)、[DeepSeek 模型能力](https://api-docs.deepseek.com/quick_start/pricing)、[thinking 参数](https://api-docs.deepseek.com/guides/thinking_mode/)、[Tavily Search](https://docs.tavily.com/documentation/api-reference/endpoint/search)。本地 `ToolCallingCompatibilityTest` 已实际使用解析的 Spring AI 1.1.8 callback/manager 执行离线 spike；这不替代真实 Provider smoke。
-
-## 通用技术基线
-
-- Java 21、Spring Boot 3.5.14
-- MyBatis-Plus 3.5.17、MySQL
-- Spring Web、Bean Validation、BCrypt
-- JJWT 0.13.0
-- Maven Wrapper
-
-## 当前分层与模块
-
-### Frontend
-
-当前前端为 Vue 3、TypeScript、Vite、Vue Router、Axios 和 Element Plus，已落地 21 个 routed frontend pages。前端通过 HTTP / JSON REST API 调用 Spring Boot backend。
-
-```text
-HTTP / JSON
-  ↓
-BearerTokenInterceptor → JwtTokenService → request.currentUserId
-  ↓
-Controller + Request/Response DTO
-  ↓
-Service（业务规则、归属校验、事务）
-  ↓
-MyBatis-Plus Mapper
-  ↓
-MySQL
 ```
-
-传统业务主链路由 Vue 3 页面发起 HTTP/JSON 请求，经 Controller、Service（业务规则、归属校验、事务）和 MyBatis-Plus Mapper 落到 MySQL；Controller 不直接访问数据库。AI 功能在同一边界内先由 Java Service 读取并裁剪 owner-scoped Business Facts，再经过 Spring AI 的 `ChatClient`/typed output 调用固定 DeepSeek Official API，返回后仍由 Java 做 schema、权限、证据和状态校验。
-
-```text
-owner-scoped Business Facts (Java Service)
-  → Spring AI ChatClient / typed output
-  → DeepSeek Official API (OpenAI-compatible, deepseek-v4-flash)
-  → Java validation / trusted evidence reconstruction
-  → ephemeral candidate 或显式确认后的既有 Service 事务
-```
-
-```text
 com.careerplatform
-├─ auth       JWT、Bearer 拦截、currentUserId 参数解析
-├─ common     ApiErrorResponse、统一异常映射
-├─ config     PasswordEncoder、WebMvc 配置
-├─ user       注册、登录、用户数据访问
-├─ profile    共享基础档案
-├─ career     职业目标、公司、岗位、要求与笔记
-├─ learning   周计划、任务、学习记录、周复盘、笔记与资料元数据
-├─ resume     简历、版本、内容快照与原始文件
-├─ application 投递、阶段历史、测评、面试、Offer、最终复盘
-└─ ai          可选 Chat foundation、JD parse、Learning AI、Job Discovery 与 RAG 边界
+├── auth          JWT 签发与校验、拦截器、当前用户参数解析
+├── common        统一异常与错误响应
+├── config        密码编码、Web MVC 装配
+├── user          注册登录、账号状态
+├── profile       共享基础档案（教育、技能、项目、实习、证书）
+├── career        职业目标、公司、岗位、岗位要求、岗位笔记
+├── learning      学习计划、任务、记录、周复盘、笔记、学习资料
+├── resume        简历、版本、内容条目、原件文件
+├── application   投递、阶段历史、测评、面试、Offer、最终复盘
+└── ai            AI 网关、Prompt、候选校验、RAG 与岗位发现编排
 ```
 
-当前 backend package 实际包含 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning`、`resume`、`application` 和 `ai`。
+职责边界：
 
-当前源码扫描实际包含 27 个精确 `@RestController`（不含 `@RestControllerAdvice`）；M6A 的 `JdAiController` 承载 JD parse/confirm，M6B 的 `LearningAiController` 承载 Plan/Review suggestion 与 Plan confirm，M6C 的 `JobDiscoveryController` 承载 Job Discovery/confirm，M7 的 `RagController` 承载 RAG status/query，当前增量的 `ResumeFileController` 承载 multipart upload、metadata 与 download。Controller 不接受客户端提供的 `userId` 作为资源归属。公开端点只有 `POST /api/v1/auth/register` 和 `POST /api/v1/auth/login`；其余 `/api/v1/**` 端点都要求合法 Bearer Token。
+- **Controller** 只做协议转换与参数校验，不包含业务判断。
+- **Service** 承担归属校验、业务规则、状态迁移与事务边界，是唯一允许写库的层次。
+- **Mapper** 只做数据访问；需要行锁或复杂过滤时使用显式 SQL，其余场景使用 MyBatis-Plus 的条件构造器。
 
-## AI Foundation 与结构化候选边界
+## 2. 认证与归属边界
 
-`com.careerplatform.ai` 提供最小 AI 基础设施：配置、provider-neutral `AiChatGateway`、独立 Embedding/RAG gateway、Spring AI `ChatClient` 实现、typed DTO、统一异常以及 JD/Learning/RAG 专用 service/controller。生产依赖使用 Spring AI BOM `1.1.8` 与 `spring-ai-starter-model-openai`；Spring Boot 保持 `3.5.14`。DeepSeek Official API 通过 OpenAI-compatible adapter 接入；endpoint 固定为 `https://api.deepseek.com`，生产 Chat 模型硬锁为 `deepseek-v4-flash`，无 fallback。维护中的全局开关、adapter 与 key 分别来自 `AI_CHAT_ENABLED`、`AI_CHAT_PROVIDER`、`AI_API_KEY`；旧 `AI_JD_PARSE_ENABLED` 只在新开关缺失时作为兼容 fallback。客户端、`AI_MODEL`、runtime options 和自动 fallback 都不能改变模型。Gateway 在每次 Prompt 上再次施加内部 Flash 常量并禁用 tool choice/internal tool execution。
+采用轻量 MVC Interceptor + JWT，而不是引入完整的安全框架：
 
-所有 AI 模型默认 `none`，非 Chat 模型固定禁用；`AI_CHAT_ENABLED` 默认 `false`。无 provider 或 API key 时 gateway 返回 `AI_SERVICE_UNAVAILABLE`，不会阻止 Spring Context 或传统业务启动。Provider failure 映射为 503 `AI_PROVIDER_UNAVAILABLE`，structured output/conversion failure 映射为 502 `AI_INVALID_RESPONSE`，响应不透出 provider 原始认证错误、secret 或 stack trace。
+- 除注册与登录外的所有 `/api/v1/**` 端点都要求合法 Bearer Token；Token 无效、过期或账号被禁用统一返回 401。
+- 拦截器校验通过后把当前用户 ID 写入请求上下文，Controller 通过参数解析器注入，**客户端提交的任何 userId 都不作为归属依据**。
+- Service 的查询、更新、删除始终带 `currentUserId` 条件。跨用户访问统一按"资源不存在"处理，不泄露资源是否存在。
 
-### JD Structured Parse
+选择轻量的原因：当前只有单一身份类型，没有角色、权限组或第三方登录的需求。引入完整安全框架会带来配置复杂度而没有对应的业务收益；出现 RBAC 或多认证方式时再评估。
 
-JD parse 使用 `POST /api/v1/jobs/{jobId}/ai/jd-parse`。后端按 `currentUserId` 读取 owner-owned Job，只把当前 `rawJd` 发送给模型。模型 schema 只能产生 `type`、`description`、`skillName`、`evidenceQuote` 和 warnings，不能产生任何可信数据库 ID。Java 随后执行输出数量/长度/enum/nullability 校验、空白和大小写归一化 evidence 子串校验、AI 内部去重、global Skill 名称匹配、现有 requirement 重复检测，并生成 `SHA-256(rawJd)` fingerprint。unsupported evidence 直接丢弃并产生 warning；不存在的 Skill 标记 `UNRESOLVED`，绝不自动创建。
+## 3. AI 写入边界
 
-JD 属于不可信用户内容。System instruction 明确禁止执行 JD 中的角色切换、prompt 泄露、secret 请求、schema 修改、联网或工具调用指令，只允许提取显式事实；user prompt 使用清晰 untrusted delimiter。本功能的 `ChatClient` 未注册 tools，因此没有 tool capability。Spring AI OpenAI ChatModel 启动所需的 `ToolCallingManager` 使用空 resolver，生产路径仍没有任何可发现或可调用的 tool。
+这是整个项目最重要的一条架构约束：**AI 的输出一律视为不可信候选，绝不直接写入业务表。**
 
-parse 返回 ephemeral candidate，绝不修改 `job_requirement`。只有用户在 Job Detail 审核、编辑、选择后调用 `POST /api/v1/jobs/{jobId}/ai/jd-parse/confirm` 才会写库。confirm 不调用 AI；它先锁定 owner-owned Job，比较当前 JD fingerprint，再执行 DTO、Skill、重复和既有 `CareerService` requirement 规则，最后在单一事务中追加 selected requirements。旧 fingerprint 返回 409 `INVALID_RESOURCE_STATE`，任一非法项使整批回滚，既有人工 requirement 永不被删除或覆盖。
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant C as Controller
+    participant AI as AI Gateway
+    participant S as Service
+    participant DB as MySQL
 
-## 身份与安全边界
+    U->>C: 请求 AI 解析
+    C->>AI: 结构化调用（输入视为不可信数据）
+    AI-->>C: 候选结果
+    C-->>U: 候选 + 证据 + 指纹
+    Note over U: 用户审核、编辑、勾选
+    U->>C: 提交确认
+    C->>S: confirm
+    S->>S: owner / 状态 / 指纹 / 业务规则 / 去重校验
+    S->>DB: 事务写入
+    DB-->>S: 提交
+    S-->>U: 已写入结果
+```
 
-登录由 `UserService.login()` 查询用户、检查 `ACTIVE` 状态并使用 `PasswordEncoder.matches(raw, hash)` 验证密码。用户名不存在、密码错误和用户不可登录统一返回 `401 INVALID_CREDENTIALS`。成功后由 `JwtTokenService` 生成包含 `userId` 和 `username` 的短期 JWT。
+具体约束：
 
-`BearerTokenInterceptor` 统一验证 `Authorization: Bearer ...`，将 `currentUserId` 写入 request attribute；`CurrentUserIdArgumentResolver` 为 Controller 的 `@CurrentUserId Long` 参数提供身份。没有使用 ThreadLocal。
+- **候选不落库**：解析阶段只返回候选、证据片段与警告，不产生任何业务表写入。
+- **指纹校验**：解析结果携带原始 JD 的 SHA-256 指纹；确认时重新计算并比对，不一致说明源数据已变化，拒绝确认并要求重新解析。
+- **规则校验**：确认阶段重新执行 owner 校验、资源状态校验、技能关联规则校验与归一化去重，而不是信任前端提交的勾选结果。
+- **单事务写入**：需要写入多行时（例如学习计划与其任务）在同一个事务内完成，避免部分写入。
+- **确认不再调用 AI**：确认接口是纯 Java 逻辑，模型不参与，也不产生新的不确定性。
+- **降级可用**：AI、外部搜索、向量服务均为可选配置。未配置时传统业务链路完整可用，相关入口返回明确的不可用提示，不伪造数据。
 
-所有私有资源的 Service 查询、更新和删除条件都包含资源主键与 `currentUserId`。资源存在但属于其他用户时，对外返回 `404 RESOURCE_NOT_FOUND`，不泄露资源存在性。
+### 3.1 岗位发现的外部搜索
 
-## 共享基础档案边界
+- **模型看不到真实 URL**：搜索结果在服务端被分配不透明键，模型只能引用键；URL 与来源事实由 Java 从请求级会话中取回。
+- **SSRF 防护**：仅允许 http/https；拒绝携带用户信息的 URL；拒绝 localhost、`.local` 域名、IPv4 私有段与保留段、IPv6 ULA 等内网目标；按规范化 URL 去重。
+- **传输加固**：endpoint 为编译期常量，不可由请求或环境变量覆盖；HTTP 客户端禁用重定向，设置连接与请求超时，并对响应体做流式大小限制（超限立即取消读取，防止"先发响应头再挂住"）。
+- **事实与建议分层**：来源事实（URL、标题、host、摘要、明确给出的日期）与模型建议分开建模与返回。搜索摘要不会被提升为完整 JD，日期只取来源显式提供的字段，不做推断。
+- **预算控制**：限制工具调用次数与模型请求次数，超限即拒绝而不是继续重试。
+- **诊断封闭**：内部错误按固定的规则枚举分类记录，不把模型或外部服务返回的原文写入日志，避免敏感信息经日志外泄。
 
-共享档案是后续 Career、Learning、Resume、Application Review 和 AI 的事实源：
+### 3.2 RAG 可信引用
 
-- `UserProfile`：每用户最多一条，`PUT` 为 upsert。
-- `EducationExperience`、`ProjectExperience`、`InternshipExperience`、`CertificateAward`：用户私有 CRUD。
-- `Skill`：全局标准技能字典，只提供创建和查询。
-- `UserSkill`：用户与技能的关联，熟练度限定为 `BEGINNER`、`FAMILIAR`、`PROFICIENT`。
+- **检索边界在 SQL 层**：候选分片的查询同时限定 `user_id`、`plan_id`、资料索引状态与 embedding 身份；Java 侧对返回行再做一次防御性校验。
+- **引用由 Java 重建**：模型只返回引用键，真实的资料 ID、分片 ID、位置标签、页码与原文全部由 Java 从本次检索集重建；未知引用键直接判为非法返回。
+- **I/O 后复检**：模型调用完成后重新确认引用仍然存在且原文未被修改，避免把已变更的证据当作依据返回。
+- **无证据不编造**：检索不到满足阈值的证据时直接返回"依据不足"，且不调用模型。
+- **只读能力**：问答不修改任何业务数据。
+- **向量身份**：embedding 的 endpoint / model / version 组合的摘要作为向量身份参与检索条件；更换模型后旧向量不会被检索命中，必须重新索引。
 
-其他模块应经正式 Service 读取或修改共享档案，不能绕过业务边界直接写表。
+## 4. 并发与事务设计
 
-## 职业探索边界
+### 4.1 投递状态机
 
-- `CareerGoal`：用户可维护多个目标与历史方向。
-- `Company`：当前是用户私有收集的信息，不是全站企业库。
-- `Job`：同时属于用户并引用该用户自己的 Company；用 `archived` 保留历史岗位。没有 Application 历史时允许物理删除；一旦存在任意历史，即使全部 ENDED，也返回 `409 RESOURCE_IN_USE`，只能归档或隐藏。
-- `JobRequirement`：挂在 Job 下；`SKILL` 类型必须引用已存在的全局 Skill，其他类型不得携带 `skillId`。
-- `JobNote`：挂在 Job 下，保存用户自己的岗位观察。
+```mermaid
+stateDiagram-v2
+    [*] --> APPLIED
+    APPLIED --> ASSESSMENT
+    APPLIED --> INTERVIEW
+    APPLIED --> OFFER
+    APPLIED --> ENDED
+    ASSESSMENT --> INTERVIEW
+    ASSESSMENT --> OFFER
+    ASSESSMENT --> ENDED
+    INTERVIEW --> OFFER
+    INTERVIEW --> ENDED
+    OFFER --> ENDED
+    ENDED --> [*]
+```
 
-创建或更新 Job 前，Service 验证 `company.id = companyId AND company.user_id = currentUserId`。访问 JobRequirement 或 JobNote 前，Service 先验证父 Job 属于当前用户，再以 `child.id + job.id` 操作子资源。数据库还用 `(company_id, user_id) → company(id, user_id)` 复合外键形成最终一致性防线。
+- 允许向前跳级（例如从 `APPLIED` 直接进入 `INTERVIEW`），`ENDED` 为终态，任何从终态出发的迁移都被拒绝。
+- Offer 的接受 / 拒绝会驱动投递进入 `ENDED`，并在同一事务内写入对应的结束原因。
 
-## Learning 与 AI Learning 边界
+### 4.2 为什么需要三层并发保障
 
-Learning 的传统业务与 AI 候选功能共享既有六个资源；M6B 历史上不增加 AI 表、RAG、文件上传、向量化或新页面。M7 在同一 `LearningMaterial` 归属边界内增加文件、Chunk、Embedding 与 RAG 问答，不新增 routed page。资源关系固定为：
+同一个业务不变量（例如"同一用户同一岗位只能有一个进行中的投递"）在并发下容易被破坏，只靠一层机制都有盲区：
 
-- `LearningPlan 1 -> n LearningTask`；`LearningTask 1 -> n StudyRecord`。
-- `LearningPlan 1 -> 0..1 WeeklyReview`，通过 `PUT /api/v1/learning-plans/{planId}/review` 创建或更新同一条复盘。
-- `LearningNote` 与 `LearningMaterial` 独立属于 Plan，可选关联同一 Plan 下的 Task。
+1. **应用层状态机**：拒绝非法迁移，但无法阻止两个并发请求都通过状态检查。
+2. **前置状态条件更新（CAS）与行锁**：更新时带上前置状态，命中 0 行说明状态已被他人改变；对"检查 + 写入"的复合操作（创建投递、创建/更新 Offer、写最终复盘）在父资源上加行锁，把并发请求串行化。
+3. **数据库唯一约束**：作为最后一道防线，即使前两层都因某种原因失效，数据库仍会拒绝重复数据；Service 捕获唯一键冲突并映射为 409。
 
-所有 Learning 私有表都保存 `user_id`。每个 Learning API 从 `@CurrentUserId Long` 获取 owner；Service 的详情、更新、删除查询同时带资源 ID 与 owner，子资源还验证路径父级。Note/Material 的 `taskId` 使用同一 Plan、同一 owner 的任务校验，跨用户或错误父子组合统一返回 `404 RESOURCE_NOT_FOUND`。
+阶段变更与历史记录追加在同一个事务内提交，因此非法迁移不会留下"状态没变但历史多了一条"的半写记录。
 
-Learning 的 Plan 周起止日期要求 `weekEnd >= weekStart`，同一用户同一 `weekStart` 唯一；Task 截止日期必须位于 Plan 闭区间，计划用时为正、排序值不小于零；StudyRecord 时长为正且不会隐式改变 Task 状态。删除 Task 时事务内先解绑 Note/Material 的可选 `taskId`，再删除 Records 和 Task；删除 Plan 时按 Material、Note、Review、Record、Task、Plan 顺序清理全部后代。
+### 4.3 长耗时操作与事务的边界
 
-### Learning AI
+外部调用（模型、向量、搜索）耗时长且可能失败，因此**不在数据库事务内进行网络调用**：
 
-M6B 提供 `POST /api/v1/learning-plans/ai/plan-suggestion`、`POST /api/v1/learning-plans/ai/plan-suggestion/confirm` 和 `POST /api/v1/learning-plans/{planId}/ai/review-suggestion`。Suggestion 只读；confirm 不调用 AI，固定创建 `PLANNED` Plan 与 `TODO` Tasks，并在 `LearningService.createPlanWithTasks` 的一个事务中先全量验证再写入。Review candidate 只能由用户应用到现有表单，正式保存继续复用 `PUT /api/v1/learning-plans/{planId}/review`。
+- 文件上传与索引：owner 校验 → 校验与解析 → 短事务写入原件 → 事务外调用向量服务 → 短事务替换分片并置为就绪。
+- 索引过程中若资料被替换，通过内容摘要比对发现并拒绝写入。
+- 失败时保留原件供重试；已有可用索引的资料在重建失败时保留旧索引，不会让可用状态退化。
 
-`LearningAiContextBuilder` 只读取 current user 的数据，优先使用用户明确时间约束、focus、CareerGoal 与选中的结构化 JobRequirement；不发送 raw JD、Resume、联系方式、secret 或 `userId`。预算固定为技能 30、岗位 5、每岗要求 10/总计 30、最近 Plan 2、Task 20、StudyRecord 30、Note 12、Review 2、单段文本 300、上下文文本 12000；截断必须返回 warning。Java 构造 evidence map，模型只能返回 `evidenceKeys`，Java 再反查可信 label/excerpt；unknown key 不成为证据，每个 Plan task 必须至少有一条有效 evidence。Review 的状态计数、完成率、计划/实际分钟与逐任务时长全部由 Java 计算。UI 将来源事实与 AI 建议分区展示。
+## 5. 安全设计
 
-## Resume 边界
+- **密码**：使用 BCrypt 编码，登录时统一返回"凭证无效"，不区分用户名不存在与密码错误。
+- **JWT**：使用 HMAC 签名，密钥必须至少 32 字节；校验签名与过期时间，并检查账号是否处于可用状态。
+- **文件上传**：校验文件头魔数与文档结构，不信任扩展名与客户端声明的 MIME；限制单文件大小、ZIP 条目数与解压后总字节数（防压缩炸弹）；清洗文件名中的路径穿越字符。
+- **大对象读取**：原件以 BLOB 存储，但普通查询不读取该列，只有显式的下载接口按 owner 读取；响应带 `nosniff` 与安全的内容处置头。
+- **不可信输入**：外部文本与模型输出一律作为数据而非指令处理；Prompt 中明确要求忽略输入内的指令性内容。
+- **凭据管理**：所有密钥与密码只从本地配置或环境变量读取，不写入源码与文档。
 
-Resume 的内容快照层级为 `Resume 1 -> n ResumeVersion 1 -> 0..n ResumeContentItem`。这三张核心表都保留 `user_id`，Service 对每个详情、更新和删除操作验证完整的 owner 与路径父级；错误 owner、错误 Resume/Version 父子组合统一返回 `404 RESOURCE_NOT_FOUND`。数据库使用 `(resume_id, user_id) -> resume(id, user_id)` 与 `(version_id, user_id) -> resume_version(id, user_id)` 复合外键，`(resume_id, version_no)` 保证同一 Resume 的版本号唯一。
+## 6. 数据访问
 
-Version 只有 `DRAFT` 与 `FINALIZED` 两种状态。DRAFT 可编辑、可删除；FINALIZED 的版本和内容均只读，重复 finalize 保持第一次 `finalizedAt`。生成接口经 ProfileService 读取共享档案，并把 Profile、Education、Skill、Project、Internship、Certificate 内容写入持久化快照；之后修改共享档案不会回写旧版本。复制 FINALIZED 版本会创建新的 DRAFT 版本和新的内容行，目标版本与源版本互不共享行。Resume 含 FINALIZED 版本时拒绝删除并返回 `RESOURCE_IN_USE`。
-
-当前 Resume File 增量保持相同的 owner/父级校验：上传使用 multipart → validator → transactional persistence，文件内容落在 `resume_file.file_data MEDIUMBLOB`，元数据响应不含 bytes；下载只允许当前用户读取对应版本的原件。原始文件是版本的 0..1 附属资源，不替代内容快照，也不改变 DRAFT/FINALIZED 写保护。
-
-## Application 边界
-
-创建 Application 必须绑定当前用户所属 Job 与历史上已经定稿的 `FINALIZED ResumeVersion`，DRAFT 返回 `409 INVALID_RESOURCE_STATE`；上传的原始文件不会绕过该绑定或替代版本快照。创建时冻结岗位标题、公司名称、地点和原始 JD，并原子写入初始 `APPLIED` History。状态机固定为：`APPLIED -> ASSESSMENT/INTERVIEW/OFFER/ENDED`、`ASSESSMENT -> INTERVIEW/OFFER/ENDED`、`INTERVIEW -> OFFER/ENDED`、`OFFER -> ENDED`、`ENDED -> none`。
-
-同一 `user_id + job_id` 的创建先锁定 Job 行，Service 在事务中检查现有 ongoing Application；数据库以生成列 `ongoing_job_id = CASE WHEN current_stage <> 'ENDED' THEN job_id ELSE NULL END` 和 `UNIQUE(user_id, ongoing_job_id)` 提供最终并发防线。转为 ENDED 后生成列为 NULL，允许以后再次投递。Job 创建投递与物理删除共用同一父行锁，避免“删除检查”和“创建投递”竞态。
-
-所有显式迁移都先 `FOR UPDATE` 锁定 owner 匹配的 Application，并在同一事务内更新 `currentStage`、终局字段和追加 History。Assessment、Interview 的创建或局部结果更新不触发全局状态。Offer 创建固定为 CONSIDERING 并推进至 OFFER；ACCEPTED/REJECTED 会在同一事务内终结 Offer、Application 并追加 History。FinalReview 采用 `GET + PUT upsert`，仅 ENDED 后可写，数据库 `UNIQUE(application_id)` 保证 0..1。
-
-## Mapper 注册与异常
-
-应用入口通过显式 `@MapperScan` 注册：
-
-- `com.careerplatform.user.mapper`
-- `com.careerplatform.profile.mapper`
-- `com.careerplatform.career.mapper`
-- `com.careerplatform.learning.mapper`
-- `com.careerplatform.resume.mapper`
-- `com.careerplatform.application.mapper`
-
-异常继续统一为 `ApiErrorResponse(code, message, timestamp)`，当前覆盖参数校验、非法 JSON/枚举/路径类型、未认证、无效凭证、资源不存在、重复资源、资源被引用和资源状态冲突等场景。Request DTO 与 Entity 分离，TEXT 请求字段统一限制为 16000 字符，VARCHAR 上限与 SQL 列宽一致；Resume 请求 DTO 不接受 `userId`、`status`、`finalizedAt`、`sourceType` 或 `sourceId`，Response DTO 不包含 `userId` 或 `passwordHash`。
-
-## 后续规划边界
-
-JD Structured Parse 是第 1 个正式 AI 功能，AI Learning Planning + Weekly Review 是第 2 个，M6C AI Job Discovery / Tool Calling 是第 3 个，M7 RAG 是第 4 个。AI 面试与求职复盘、Resume + JD matching、通用 Agent 和 AI Evaluation 仍未实现。RAG 问答保持 read-only，来源由 Java 从本次检索集重建；其余需要写入的 AI 输出继续遵循“候选结果 → 用户确认 → Java Service 校验与持久化”，不得直接写正式业务数据。
+- 使用 MyBatis-Plus 而非 JPA：项目需要显式控制 SQL 边界（行锁、owner 条件的复合 JOIN、条件更新），显式 SQL 更直观也更容易审查。
+- 需要行锁时使用显式 SQL；其余场景使用条件构造器，避免字符串拼接。
+- 需要"当前用户 + 父级资源"双重条件时，把两个条件同时写在查询里，而不是先查父级再查子级，避免越权路径。
+- 数据库层面使用 owner-aware 复合外键，使跨用户引用在数据库层就无法成立。

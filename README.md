@@ -1,226 +1,166 @@
-# Career Platform | 大学生职业发展与求职管理平台
+# Career Platform · 大学生职业发展与求职管理平台
 
-> 面向大学生的职业发展与求职管理平台：把职业目标、学习提升、简历版本、岗位投递与复盘串成一个可追溯闭环，并在关键节点提供可确认的 AI 建议。
+面向大学生的职业发展与求职管理平台：把职业目标、学习计划、简历版本、岗位与投递、面试与复盘串成一条可追溯的闭环，并在关键节点由 AI 生成候选建议，**经用户确认后才进入业务系统**。
 
-[项目仓库](https://github.com/qianlixunbai/career-platform) · [开发状态](docs/DEVELOPMENT_STATUS.md) · [系统架构](docs/ARCHITECTURE.md) · [数据库说明](docs/DATABASE.md)
+**技术栈**：Java 21 · Spring Boot 3.5 · MyBatis-Plus · MySQL 8 · Spring AI 1.1（DeepSeek）· Vue 3 · TypeScript · Vite · Element Plus
 
-## Overview
+> 后端 269 个 Java 文件 / 约 1.46 万行 · 前端 21 个路由页面 · 327 个后端测试全绿（0 失败 / 0 错误 / 0 跳过）
 
-Career Platform 是一个前后端分离的职业管理应用。共享基础档案（个人信息、教育、技能、项目、实习、证书/获奖）作为 Career、Learning、Resume、Application 以及 AI 功能的事实源，而不是第五个独立业务模块。
+## 1. 项目介绍
 
-产品覆盖四个核心业务域：职业探索与目标管理、学习提升管理、简历管理、求职过程管理。用户可以从确定目标开始，沉淀岗位与原始 JD，制定学习计划，维护可定稿的简历版本，绑定简历完成投递，记录测评/面试/Offer，并通过复盘反馈到下一轮准备。
+大学生搜集岗位的渠道分散在企业公众号、招聘网站、备忘录和表格里，导致很难回答"当时用的是哪一版简历、经历了哪些测评和面试、最后为什么结束"。本项目把这条链路收敛到一个系统中，让每一步都能被追溯。
 
-本 README 描述当前实现快照；Milestone 的历史决策、验收证据、P0/P1/P2 和已知技术债集中在 [开发状态](docs/DEVELOPMENT_STATUS.md)，不把规划内容当作已完成能力。
-
-## Core Workflow
-
-```text
-共享基础档案 + 职业目标
-        ↓
-岗位 / 公司 / 原始 JD
-        ↓
-AI 解析、学习建议、岗位发现（候选结果）
-        ↓
-用户审核与确认 → Java Service 校验 → 学习计划 / 岗位 / 要求入库
-        ↓
-简历 DRAFT → 编辑 / 复制 → FINALIZED
-        ↓
-投递 → 测评 / 面试 / Offer → 最终复盘
-        ↖                 ↙
-       学习资料与有来源问答 ← 复盘反馈
+```
+共享基础档案 → 职业目标 → 岗位与原始 JD → AI 解析候选 → 用户确认 → 要求入库
+                     ↓
+        学习计划与任务 → 学习资料与有来源问答 → 周复盘
+                     ↓
+        简历 DRAFT → 编辑 / 复制 → FINALIZED → 投递 → 测评 / 面试 / Offer → 复盘
 ```
 
-AI 只插入“建议和候选”环节；确认前不写正式业务数据。岗位来源事实、模型建议、用户最终确认的记录在界面和 API 中分层呈现。
+**AI 在系统中的角色是辅助能力，不是系统依赖。** AI 只生成候选（结构化岗位要求、学习计划、岗位发现、资料问答），任何需要持久化的结果都必须经过用户确认与 Java 侧校验。AI、外部搜索、向量服务全部默认关闭；未配置时传统业务链路完整可用，相关入口返回明确的降级提示。
 
-## Screenshots
+## 2. 我做了什么
 
-以下为项目主展示截图，图片均来自仓库现有资源，未对图片文件做修改。
+个人项目，独立完成从业务建模到测试的全部环节：
 
-| 总览与职业探索 | AI 与学习 |
-| --- | --- |
-| ![Dashboard](docs/assets/screenshots/01-dashboard.png)<br>**Dashboard**：职业、学习、简历与投递总览 | ![Job detail](docs/assets/screenshots/01-job-detail-with-original-jd.png)<br>**Job Detail**：岗位详情与原始 JD |
-| ![JD parse](docs/assets/screenshots/02-ai-jd-structured-parse-with-evidence.png)<br>**JD Structured Parse**：结构化要求与 evidence | ![Job discovery](docs/assets/screenshots/03-job-discovery-overview.png)<br>**Job Discovery**：岗位发现与来源入口 |
-| ![Learning plan](docs/assets/screenshots/05-learning-plan-detail.png)<br>**Learning Plan**：计划、任务与周复盘 | ![Learning materials](<docs/assets/screenshots/学习资料列表与资料问答入口.png>)<br>**Learning Materials**：资料列表与问答入口 |
-| ![RAG answer](<docs/assets/screenshots/基于学习资料的 AI 问答结果与来源依据.png>)<br>**RAG Answer**：回答与来源依据 | ![Resume files](docs/assets/screenshots/05-resume-file-and-version-management.png)<br>**Resume Files**：文件与版本管理 |
+- **业务建模与数据库设计**：把 4 个业务域 + 1 个共享档案抽象成 29 张业务表，用 owner-aware 复合外键保证"用户 A 的数据不可能被用户 B 引用"。
+- **后端架构**：按 `auth / user / profile / career / learning / resume / application / ai` 分包；Controller 只做协议转换，业务规则、归属校验、状态机与事务收敛在 Service 层。
+- **AI 边界设计**：定义并落地"AI 提案 → 用户确认 → Java 校验 → 事务落库"这一强制约束，覆盖 4 个 AI 能力。
+- **RAG 链路**：PDF/DOCX 解析、分块、独立 Embedding、owner/plan 范围检索，以及**由 Java 重建的可信引用**。
+- **投递状态机与文件安全**：有限状态迁移 + 并发一致性保障；上传文件的魔数校验、ZIP 结构校验、解压炸弹限制与文件名清洗。
+- **前端与测试**：Vue 3 + TypeScript 实现 21 个路由页面；52 个测试类覆盖单元、真实 MySQL 集成、并发、事务回滚与 AI 类型转换。
 
-## Core Modules
+## 3. 核心技术亮点
 
-| 模块 | 已实现范围 |
-| --- | --- |
-| Shared Profile | 个人资料、教育经历、技能与熟练度、项目经历、实习经历、证书/获奖；为其他模块提供 owner-scoped 事实源 |
-| Career Exploration | CareerGoal、用户私有 Company、Job、JobRequirement、JobNote；保存原始 JD 与岗位观察 |
-| Learning | 周计划、任务、学习记录、周复盘、笔记、学习资料；支持 PDF/DOCX 原件、Chunk、Embedding 与资料问答 |
-| Resume | Resume、ResumeVersion、ResumeContentItem、ResumeFile；从共享档案生成快照，也支持上传 PDF/DOCX 原件、复制、定稿与下载 |
-| Application | 投递、阶段历史、测评、面试、Offer、最终复盘；状态迁移与历史记录在事务内保持一致 |
+### 3.1 AI 提案 → 用户确认 → Java 校验 → 事务落库
+**"不信任模型输出"是一条架构约束，不是一个建议。** AI 解析岗位 JD 时只返回候选，不写任何业务表。确认阶段重新执行完整校验：owner 校验、资源状态校验、`sourceFingerprint`（原始 JD 的 SHA-256）比对（不一致直接拒绝并提示重新解析）、技能关联规则校验、归一化去重，最后在单个事务内写入；确认接口不会再次调用 AI。四个 AI 能力都遵循同一模式：模型既不能生成可信的数据库 ID，也不能直接提交事务。
+`相关代码：ai/service/JdParseService.java · ai/controller/LearningAiController.java · ai/service/JobDiscoveryService.java`
 
-## Four Formal AI Features
+### 3.2 RAG 可信引用
+检索的 SQL 层就用 `user_id` + `plan_id` + 索引状态 + embedding 身份限定边界，Java 侧再做一次防御性校验。模型只被允许返回引用键（`c1`~`c4`），**真实的 materialId、chunkId、页码与原文全部由 Java 从本次检索集重建**，未知引用键直接判为非法返回。网络 I/O 之后会再次确认引用仍然存在且原文未被修改，避免把已变更的证据当作依据返回；检索不到足够证据时直接返回"依据不足"，不强行生成答案，也不调用模型。
+`相关代码：ai/service/RagService.java · learning/mapper/LearningMaterialChunkMapper.java`
 
-当前正式完成并计入产品范围的 AI 功能为 4 项：
+### 3.3 投递状态机与并发一致性
+投递阶段由一张显式的迁移矩阵约束（`APPLIED → ASSESSMENT / INTERVIEW / OFFER / ENDED`，`ENDED` 为终态），非法迁移直接拒绝。并发正确性由**三层**保障，而不是只依赖事务：① 更新时带上前置状态条件（CAS），并发双迁移会命中 0 行而被拒绝；② 创建投递、创建/更新 Offer、写最终复盘前对父资源加行锁，把"检查 + 写入"串行化；③ 数据库唯一约束作为最后一道防线，唯一键冲突映射为 409。阶段变更与历史记录追加在同一事务内提交，非法迁移不会留下半写历史。
+`相关代码：application/service/ApplicationService.java`
 
-### 1. JD Parse + Evidence
+### 3.4 外部搜索安全
+模型**看不到真实 URL**：每个搜索结果在服务端被分配一个不透明键，模型只能引用键，URL 与来源事实由 Java 从请求级会话中取回。同时做了 SSRF 防护：仅允许 http/https、拒绝携带用户信息的 URL、拒绝 localhost 与内网地址（含 IPv4 私有段、链路本地、IPv6 ULA）。HTTP 客户端禁用重定向、设置连接与请求超时，并对响应体做流式大小限制（超限立即取消读取）。来源事实（URL、标题、host、摘要、日期）与模型建议分开建模与返回，搜索摘要不会被当作完整 JD 写入。
+`相关代码：ai/service/JobSearchSession.java · ai/client/TavilyJobSearchGateway.java`
 
-读取用户保存的原始 JD，生成岗位要求候选、技能匹配和可回溯的 `evidenceQuote`。Java Service 在解析阶段校验 evidence 子串、技能名归一化与候选重复项；解析结果是临时候选，不直接写入 `job_requirement`。用户审核、编辑和选择后，确认阶段会校验 JD fingerprint、重复项、Skill 关联规则与正式业务字段，再在事务中追加确认项。
+### 3.5 文件上传安全
+上传的 PDF/DOCX 不信任扩展名与客户端声明的 MIME：校验文件头魔数（PDF 签名、DOCX 的 ZIP 结构）、校验 DOCX 必需的内部条目、限制 ZIP 条目数量与**解压后总字节数**（防压缩炸弹）、清洗文件名中的路径穿越字符并做长度截断。原件以 BLOB 存储但**不参与普通查询**，只有显式下载接口才按 owner 读取；响应带 `nosniff` 与安全的内容处置头。简历版本定稿后内容只读，复制版本会复制出独立的数据行。
+`相关代码：resume/service/ResumeFileValidator.java · learning/service/LearningMaterialIngestionService.java`
 
-### 2. Learning Planning + Weekly Review
+## 4. 核心业务模块
 
-基于用户明确的时间预算、职业目标、结构化岗位要求、技能和有限学习历史生成可编辑学习计划候选。确认后由 Java Service 在单一事务中创建 Plan 与 Tasks；周复盘中的状态、完成率、计划/实际时长和逐任务指标由 Java 计算，AI 只生成建议。将建议应用到表单不会自动覆盖或保存已有 Review。
-
-### 3. Job Discovery + Tool Calling
-
-通过专用 Spring AI Tool Calling gateway 调用真实 Tavily Search，返回候选岗位及可打开的原始来源链接。Java 从 Tavily 结果重建 URL、标题、host、摘要和日期等 `sourceFacts`，AI 仅补充匹配建议、优势、缺口与不确定性；搜索过程不写 Job/Company。用户选择公司、确认岗位字段并显式保存后，才复用既有 `CareerService` 创建岗位。
-
-### 4. RAG Learning Material Q&A
-
-学习资料支持 PDF/DOCX 原件、解析、Chunk 和独立 Embedding；检索限定当前用户与当前计划。模型返回回答和引用 key 后，Java 只从本次检索集重建 `materialId`、Chunk、位置、页码和原文，未知 key 不会成为引用；用户可查看可信引用的原文片段并下载原始资料。RAG 问答是只读能力，不自动修改学习计划或其他业务数据；PDF 保留实际页码，DOCX 使用段落位置，不做 OCR 或页码推算。
-
-## Resume File Management
-
-- 支持上传 PDF / DOCX 原件（单文件大小限制由后端校验），可在创建简历时上传，也可为已有 Resume 新增版本文件。
-- 资源层级为 `Resume 1 → n ResumeVersion`；每个版本包含 `0..n ResumeContentItem` 与 `0..1 ResumeFile`，前端可查看文件元数据并下载原件。
-- `ResumeVersion` 只有 `DRAFT` 与 `FINALIZED`：DRAFT 可编辑/删除，只有原始文件而没有内容条目的版本也可定稿；FINALIZED 定稿后不可修改，重复定稿保持幂等，原始文件仍可查看和下载。
-- 复制版本会创建新的 DRAFT，并 deep-copy 内容行与文件 bytes；源版本和目标版本不共享可变记录。
-- `Application` 创建时必须绑定当前用户自己的 `FINALIZED ResumeVersion`；DRAFT 不能用于投递。含 FINALIZED 版本的 Resume 也不能直接删除。
-
-## Key Business Rules
-
-- **Owner boundary**：Service 的查询、更新和删除始终带认证上下文中的 `currentUserId`；跨用户资源统一按不存在处理，不接受客户端提交的 `userId` 作为归属依据。
-- **AI write boundary**：AI 输出一律视为不可信候选。流程固定为 `AI proposes → user confirms → Java Service validates/writes`；模型不能生成可信数据库 ID，也不能直接提交事务。
-- **Facts vs advice**：外部来源和 Java 重建的来源事实与 AI 建议分开返回、展示和持久化；搜索摘要不能冒充完整 JD，RAG citation 由 Java 重建。
-- **Career integrity**：`SKILL` 类型的岗位要求必须引用已有全局 Skill，未解析技能不会被自动创建；Job 只能引用当前用户自己的 Company。
-- **Application state**：投递阶段按有限状态机向前迁移，阶段变化与历史追加原子提交；同一用户与同一 Job 的 ongoing Application 受唯一性约束。
-- **Resume immutability**：FINALIZED 版本及其内容只读；Profile 后续变化不会回写已经生成的 Resume snapshot。
-- **Graceful degradation**：AI、Tavily 或 Embedding 未配置时，传统职业/学习/简历/投递流程仍可运行，对应 AI 入口返回不可用或降级提示，不伪造来源也不自动写库。
-
-## Architecture
-
-### Request and data path
-
-```text
-Vue 3 / TypeScript / Router
-        ↓ HTTP JSON + Bearer Token
-Controller + Request/Response DTO
-        ↓ currentUserId / validation
-Service（归属、业务规则、状态机、事务）
-        ↓
-MyBatis-Plus Mapper
-        ↓
-MySQL 8
-```
-
-后端按 `auth`、`common`、`config`、`user`、`profile`、`career`、`learning`、`resume`、`application`、`ai` 分包。认证使用轻量 MVC Interceptor + JWT；除注册/登录外的 `/api/v1/**` 端点要求合法 Bearer Token。
-
-### AI boundaries
-
-```text
-owner-owned facts / untrusted external text
-        ↓
-专用 AI Gateway（structured output / tool calling / RAG）
-        ↓ 临时候选、evidence、source keys
-前端审核与用户确认
-        ↓
-Java Service 归属校验、业务校验、事务写入
-```
-
-JD/Learning/Job Discovery 使用 no-tools 或专用 tool gateway，互不共享可变的业务 Tool。RAG 的检索、引用 key 和最终 citation 均由 Java 约束；Embedding 使用独立的 OpenAI-compatible endpoint，不引入外部 vector database。
-
-## Tech Stack
-
-| 层次 | 技术 |
-| --- | --- |
-| Backend | Java 21、Spring Boot 3.5.14、Spring Web、Bean Validation、MyBatis-Plus 3.5.17、Maven、BCrypt、JJWT |
-| Data | MySQL 8、MySQL 事务与 owner-aware foreign key |
-| AI | Spring AI 1.1.8；DeepSeek 通过 OpenAI-compatible adapter 接入；生产 Chat 模型固定为 `deepseek-v4-flash` |
-| Embedding | 独立 OpenAI-compatible HTTPS embedding endpoint；验证环境使用过 Jina，但代码不将 Jina 硬编码为唯一实现 |
-| Search | Tavily Search（Job Discovery 的真实外部来源） |
-| Frontend | Vue 3、TypeScript、Vite、Vue Router、Axios、Element Plus |
-
-## Project Scale
-
-| 指标 | 当前规模 |
-| --- | ---: |
-| DDL tables | **30**（29 个 business tables + 1 个 technical table：`learning_material_chunk`） |
-| 精确 `@RestController` | **27**（不含 `@RestControllerAdvice`） |
-| Routed frontend pages | **21** |
-| Formal AI features | **4** |
-| Backend regression tests | **327** |
-| Ordered SQL scripts | `001`–`009` |
-
-## Testing
-
-| 检查 | 结果 | 证据边界 |
+| 模块 | 功能 | 关键约束 |
 | --- | --- | --- |
-| Backend compile | **PASS** | 2026-09-08 final closing 执行结果 |
-| Frontend `npm run typecheck` | **PASS** | 2026-09-08 final closing 执行结果 |
-| Frontend `npm run build` | **PASS** | 2026-09-08 final closing 执行结果 |
-| Full Maven regression | **327 / 327 PASS** | **2026-09-07 最近一次完整回归**；本轮未重跑，不能表述为本轮 Full Maven 结果 |
+| 共享基础档案 | 个人资料、教育、技能、项目、实习、证书/获奖 | 其他模块的事实源；全部按 owner 隔离 |
+| 职业探索 | 职业目标、公司、岗位、岗位要求、岗位笔记 | 岗位只能引用本人的公司；技能类要求必须关联已有技能 |
+| 学习提升 | 周计划、任务、学习记录、周复盘、笔记、学习资料 | 计划与任务同事务创建；周复盘对每个计划唯一 |
+| 简历管理 | 简历、版本、内容条目、原件文件 | 定稿后只读；只有定稿版本可用于投递；复制版本数据独立 |
+| 求职过程 | 投递、阶段历史、测评、面试、Offer、最终复盘 | 状态机约束；同岗位同时只允许一个进行中投递 |
+| AI 能力（嵌入各模块） | JD 结构化解析、学习计划与周复盘建议、岗位发现、资料问答 | 一律为候选；确认前不写正式业务数据 |
 
-最近一次完整 Maven 回归于 2026-09-07 执行，327 / 327 PASS。完整回归与 Resume File 历史验收记录见 [开发状态](docs/DEVELOPMENT_STATUS.md)；专项验收记录见 [M6B Closing](docs/M6B_CLOSING_VERIFICATION.md)、[M6C Closing](docs/M6C_CLOSING_VERIFICATION.md) 与 [M7 RAG Closing](docs/M7_RAG_CLOSING_VERIFICATION.md)。
+## 5. 系统架构
 
-## Quick Start
-
-### Prerequisites
-
-- Java 21
-- MySQL 8
-- Node.js / npm（运行前端）
-
-### 1. Prepare the database
-
-创建 `career_platform` 数据库（字符集使用 `utf8mb4`），然后按顺序执行以下脚本：
-
-1. [`sql/001_create_app_user.sql`](sql/001_create_app_user.sql)
-2. [`sql/002_create_shared_profile_tables.sql`](sql/002_create_shared_profile_tables.sql)
-3. [`sql/003_create_career_exploration_tables.sql`](sql/003_create_career_exploration_tables.sql)
-4. [`sql/004_create_learning_tables.sql`](sql/004_create_learning_tables.sql)
-5. [`sql/005_create_resume_tables.sql`](sql/005_create_resume_tables.sql)
-6. [`sql/006_create_application_tables.sql`](sql/006_create_application_tables.sql)
-7. [`sql/007_add_learning_material_rag.sql`](sql/007_add_learning_material_rag.sql)
-8. [`sql/008_add_profile_email.sql`](sql/008_add_profile_email.sql)
-9. [`sql/009_add_resume_file.sql`](sql/009_add_resume_file.sql)
-
-`007`–`009` 为增量迁移脚本。对于已经应用过对应变更的数据库，请先确认当前 schema 状态后再执行，避免重复 `ALTER`。
-
-### 2. Configure local environment
-
-只在本机环境变量或 IDE Run Configuration 中提供以下名称，README 不记录任何值：
-
-- Database / JWT：`DB_USERNAME`、`DB_PASSWORD`、`JWT_SECRET`、`JWT_EXPIRATION_SECONDS`
-- Chat AI：`AI_CHAT_ENABLED`、`AI_JD_PARSE_ENABLED`（兼容旧开关）、`AI_CHAT_PROVIDER`、`AI_API_KEY`
-- Tavily：`TAVILY_SEARCH_ENABLED`、`TAVILY_API_KEY`
-- Embedding：`EMBEDDING_ENABLED`、`EMBEDDING_ENDPOINT`、`EMBEDDING_MODEL`、`EMBEDDING_VERSION`、`EMBEDDING_API_KEY`
-
-AI、Tavily 和 Embedding 配置均为可选。缺少 Chat 配置时传统业务仍可使用；缺少 Tavily 时 Job Discovery 不执行外部搜索；缺少 Embedding 或其 endpoint/model 时资料管理仍可保留，但语义检索与 RAG 问答会降级为不可用提示。任何密码、Token、API key 都不得写入源码、README 或 Git。
-
-### 3. Start backend and frontend
-
-```powershell
-.\mvnw.cmd spring-boot:run
+```mermaid
+flowchart TD
+    A["Vue 3 + TypeScript SPA"] -->|"HTTP JSON + Bearer Token"| B["Controller + DTO 参数校验"]
+    B --> C["Service：归属校验 / 业务规则 / 状态机 / 事务"]
+    C --> D["MyBatis-Plus Mapper"]
+    D --> E[("MySQL 8")]
+    C --> F["AI Gateway：结构化输出 / Tool Calling"]
+    C --> G["Embedding Gateway"]
+    C --> H["External Search Gateway"]
+    F --> I["LLM Provider"]
+    G --> J["Embedding Provider"]
+    H --> K["Search Provider"]
 ```
 
-```powershell
-cd frontend
-npm install
-npm run dev
+认证使用轻量 MVC Interceptor + JWT：除注册与登录外的所有 `/api/v1/**` 端点都要求合法 Bearer Token，当前用户 ID 由拦截器写入请求上下文，再通过参数解析器注入 Controller，**不接受客户端提交的 userId 作为归属依据**。
+
+AI 写入边界时序图、投递状态机图与核心实体关系图见 [系统架构与设计决策](docs/ARCHITECTURE.md) 与 [数据库设计](docs/DATABASE.md)。
+
+## 6. 界面截图
+
+| Dashboard —— 职业、学习、简历与投递的总览入口 | JD AI 解析 —— 结构化要求 + 可回溯的证据片段 |
+| --- | --- |
+| ![Dashboard](docs/assets/screenshots/01-dashboard.png) | ![JD parse](docs/assets/screenshots/02-ai-jd-structured-parse-with-evidence.png) |
+
+| 岗位发现 —— 候选岗位与原始来源入口 | 资料问答 —— 回答与可信来源依据 |
+| --- | --- |
+| ![Job discovery](docs/assets/screenshots/03-job-discovery-overview.png) | ![RAG answer](<docs/assets/screenshots/基于学习资料的 AI 问答结果与来源依据.png>) |
+
+其余界面截图保存在 [`docs/assets/screenshots`](docs/assets/screenshots) 目录。
+
+## 7. Quick Start
+
+**环境要求**：JDK 21 · MySQL 8 · Node.js 18+ 与 npm
+
+**1. 初始化数据库** —— 创建 `career_platform` 数据库（字符集 `utf8mb4`），然后按顺序执行 `sql/001_create_app_user.sql` 至 `sql/009_add_resume_file.sql`。其中 `007` ~ `009` 是增量脚本，请先确认当前 schema 状态再执行，避免重复 `ALTER`。
+
+**2. 配置本地参数** —— 复制 `src/main/resources/application-local.properties.example` 为同目录下的 `application-local.properties`，填入自己的数据库账号、JWT 密钥与可选的 AI / 搜索 / 向量服务配置。该文件已被 `.gitignore` 忽略，不会被提交。也可以改用环境变量：必填 `DB_USERNAME`、`DB_PASSWORD`、`JWT_SECRET`（至少 32 字节），可选 `JWT_EXPIRATION_SECONDS`、`AI_CHAT_ENABLED`、`AI_CHAT_PROVIDER`、`AI_API_KEY`、`TAVILY_SEARCH_ENABLED`、`TAVILY_API_KEY`、`EMBEDDING_ENABLED`、`EMBEDDING_ENDPOINT`、`EMBEDDING_MODEL`、`EMBEDDING_VERSION`、`EMBEDDING_API_KEY`。
+
+**3. 启动后端**（Windows 下改用 `mvnw.cmd`）：
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-后端默认使用 `src/main/resources/application.properties` 中的数据库与 AI 配置映射；Unix-like 环境使用 `./mvnw`。
+**4. 启动前端**（Vite 已将 `/api` 代理到 `http://localhost:8080`）：
 
-## Design Principles
+```bash
+cd frontend && npm install && npm run dev
+```
 
-1. **AI proposes, human confirms**：AI 是候选生成器，不是业务事实源；任何需要持久化的结果都必须经过用户确认。
-2. **Java owns truth and writes**：归属校验、字段/状态/重复校验、事务和数据库写入统一由 Java Service 负责。
-3. **Facts are not advice**：原始来源、结构化字段、证据片段与模型建议分别建模，不能把推断包装成外部事实。
-4. **Secure by ownership**：资源边界以认证上下文为准，错误 owner/父级组合不泄露资源存在性；外部文本和模型输出全部按不可信输入处理。
-5. **Graceful, bounded AI**：AI 默认 opt-in，Provider 失败不拖垮传统业务；RAG、文件、候选缓存和上下文都有明确的容量与生命周期边界。
-6. **Course-scale by intent**：当前实现聚焦可验证的课程级闭环；AI 面试/求职复盘、Resume + JD matching、通用 Agent、AI Evaluation、RBAC/OAuth、Redis/MQ/Elasticsearch 和管理员/HR 端不属于当前已完成范围。
+**5. 运行测试**（集成测试使用真实 MySQL，需先完成第 1、2 步）：
 
-## Documentation
+```bash
+./mvnw test
+```
 
-- [开发状态与历史验收](docs/DEVELOPMENT_STATUS.md)：Milestone 记录、验证边界、已知技术债与未实现范围。
-- [系统架构](docs/ARCHITECTURE.md)：分层、AI gateway、owner 边界、Resume 与 RAG 约束。
-- [数据库说明](docs/DATABASE.md)：表关系、迁移顺序、约束与当前 schema 口径。
-- [项目规划](docs/PROJECT_PLAN.md)：原始业务范围、目标用户、风险与演进方向。
-- [M6B Closing Verification](docs/M6B_CLOSING_VERIFICATION.md)：Learning AI 历史验收证据。
-- [M6C Closing Verification](docs/M6C_CLOSING_VERIFICATION.md)：Tavily Job Discovery 历史验收证据。
-- [M7 RAG Closing Verification](docs/M7_RAG_CLOSING_VERIFICATION.md)：文件、Embedding、RAG citation 与 MySQL/Provider 门禁证据。
-- [原始开工方案](docs/reference/大学生职业发展与求职管理平台_项目开工方案_v1.md)：初始设计基线，不作为当前实时状态。
+## 8. 测试
+
+后端测试全部使用真实 MySQL（不使用 H2 替代），当前结果：
+
+| 测试用例 | 失败 | 错误 | 跳过 | 测试类 | 构建 |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| **327** | 0 | 0 | 0 | 52 | `BUILD SUCCESS` |
+
+覆盖场景：Service 业务规则与 Prompt 构造等**单元测试**；真实 MySQL 上完整 HTTP 链路的**集成测试**（注册登录、档案、职业探索、学习、简历、投递）；计划与任务竞态、周复盘并发更新、同岗位重复投递等**并发测试**；AI 确认写入在第二条 INSERT 失败时完整回滚、阶段变更与历史记录原子提交等**事务测试**；用确定性假模型驱动真实 Spring AI 客户端、验证结构化输出与工具调用类型转换与预算控制的**AI 契约测试**。
+
+## 9. 项目规模
+
+| 指标 | 数量 |
+| --- | ---: |
+| 后端 Java 文件 / 行数 | 269 / 约 14,600 |
+| 测试 Java 文件 / 行数 | 52 / 约 11,800 |
+| REST Controller | 27 |
+| 数据表 | 30（29 张业务表 + 1 张检索分片技术表） |
+| 数据库脚本 | 9（`001` ~ `009`） |
+| 前端路由页面 | 21 |
+| 正式 AI 能力 | 4 |
+
+## 10. 当前范围与已知限制
+
+以下是当前实现范围内的取舍，也是后续演进时首先要处理的地方：
+
+- **检索**：当前用 MySQL 存储向量并在 Java 侧计算余弦相似度，且对单个计划的分片数量设了上限。该方案适合当前数据规模，数据量继续增长时需要引入专门的向量检索。
+- **候选缓存**：岗位发现的候选暂存在单实例内存中并设置过期时间，多实例部署时需要改为共享存储。
+- **Token 存储**：前端将令牌保存在浏览器本地存储，适用于本地部署场景；面向生产需改为 HttpOnly Cookie 并配套 CSRF 防护。
+- **认证授权**：当前是 Interceptor + JWT 的轻量实现，尚未引入角色权限模型、刷新令牌或令牌吊销。
+- **文档解析**：PDF 保留真实页码，DOCX 保留段落位置；不做 OCR，也不对扫描件做页码推算。
+- **检索阈值**：相似度阈值与 Top-K 是当前数据规模下的取值，更换向量模型后需要重新评估。
+
+## 11. 文档
+
+- [系统架构与设计决策](docs/ARCHITECTURE.md)：分层、AI 边界、并发与安全设计的原因。
+- [数据库设计](docs/DATABASE.md)：表关系、约束与迁移顺序。
+- [业务设计说明](docs/DESIGN.md)：目标用户、业务规则、模块划分与 AI 可追溯性原则。
+
+## License
+
+[MIT](LICENSE)
