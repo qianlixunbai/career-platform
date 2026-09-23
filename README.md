@@ -142,7 +142,7 @@ JD/Learning/Job Discovery 使用 no-tools 或专用 tool gateway，互不共享�
 | 精确 `@RestController` | **27**（不含 `@RestControllerAdvice`） |
 | Routed frontend pages | **21** |
 | Formal AI features | **4** |
-| Backend regression tests | **327** |
+| Backend regression tests | **328** |
 | Ordered SQL scripts | `001`–`009` |
 
 ## Testing
@@ -152,9 +152,9 @@ JD/Learning/Job Discovery 使用 no-tools 或专用 tool gateway，互不共享�
 | Backend compile | **PASS** | 2026-09-08 final closing 执行结果 |
 | Frontend `npm run typecheck` | **PASS** | 2026-09-08 final closing 执行结果 |
 | Frontend `npm run build` | **PASS** | 2026-09-08 final closing 执行结果 |
-| Full Maven regression | **327 / 327 PASS** | **2026-09-07 最近一次完整回归**；本轮未重跑，不能表述为本轮 Full Maven 结果 |
+| Full Maven regression | **328 / 328 PASS** | **2026-09-23 final freeze review 实际执行结果** |
 
-最近一次完整 Maven 回归于 2026-09-07 执行，327 / 327 PASS。完整回归与 Resume File 历史验收记录见 [开发状态](docs/DEVELOPMENT_STATUS.md)；专项验收记录见 [M6B Closing](docs/M6B_CLOSING_VERIFICATION.md)、[M6C Closing](docs/M6C_CLOSING_VERIFICATION.md) 与 [M7 RAG Closing](docs/M7_RAG_CLOSING_VERIFICATION.md)。
+最近一次完整 Maven 回归于 2026-09-23 final freeze review 实际执行，328 / 328 PASS。完整回归与 Resume File 历史验收记录见 [开发状态](docs/DEVELOPMENT_STATUS.md)；专项验收记录见 [M6B Closing](docs/M6B_CLOSING_VERIFICATION.md)、[M6C Closing](docs/M6C_CLOSING_VERIFICATION.md) 与 [M7 RAG Closing](docs/M7_RAG_CLOSING_VERIFICATION.md)。
 
 ## Quick Start
 
