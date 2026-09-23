@@ -131,7 +131,7 @@
             <div class="section-heading">
               <div><h2>Offer</h2><p>创建后会进入 Offer 处理中阶段。</p></div>
               <el-button v-if="!offer && !isEnded" type="primary" @click="openOfferCreate">记录 Offer</el-button>
-              <el-button v-else-if="offer && offer.status === 'CONSIDERING'" type="primary" plain @click="openOfferEdit">编辑</el-button>
+              <el-button v-else-if="offer && offer.status === 'CONSIDERING' && !isEnded" type="primary" plain @click="openOfferEdit">编辑</el-button>
             </div>
           </template>
           <div v-loading="offerLoading" class="offer-content">
@@ -148,7 +148,7 @@
                 <div><dt>薪酬</dt><dd>{{ offer.compensation || '未填写' }}</dd></div>
                 <div><dt>备注</dt><dd class="multiline">{{ offer.notes || '未填写' }}</dd></div>
               </dl>
-              <el-alert v-if="offer.status !== 'CONSIDERING'" title="Offer 已结束，信息仅供查看。" type="info" :closable="false" />
+              <el-alert v-if="offer.status !== 'CONSIDERING' || isEnded" title="Offer 已结束，信息仅供查看。" type="info" :closable="false" />
             </template>
           </div>
         </el-card>
@@ -739,7 +739,7 @@ function openOfferCreate(): void {
 }
 
 function openOfferEdit(): void {
-  if (!offer.value || offer.value.status !== 'CONSIDERING') return
+  if (!offer.value || offer.value.status !== 'CONSIDERING' || isEnded.value) return
   offerDialogMode.value = 'edit'
   Object.assign(offerForm, {
     status: offer.value.status,

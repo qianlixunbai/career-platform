@@ -320,6 +320,12 @@ public class ApplicationService {
         if (!OfferStatus.CONSIDERING.equals(offer.getStatus())) {
             throw new InvalidResourceStateException("已终结的 Offer 不能再次修改");
         }
+        // ENDED is terminal: an Offer that was still CONSIDERING when the
+        // application ended is read-only. Report that explicitly instead of
+        // surfacing the stage-machine message for ENDED -> ENDED.
+        if (ApplicationStage.ENDED.equals(application.getCurrentStage())) {
+            throw new InvalidResourceStateException("投递已结束，Offer 只能查看");
+        }
         updateOrNotFound(offerMapper.update(null, new LambdaUpdateWrapper<Offer>()
                 .set(Offer::getStatus, request.getStatus())
                 .set(Offer::getPositionTitle, request.getPositionTitle())

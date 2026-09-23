@@ -250,6 +250,35 @@ class ApplicationIntegrationTests {
     }
 
     @Test
+    void offerIsReadOnlyWhenApplicationEndsWhileItIsStillConsidering() throws Exception {
+        AuthSession user = registerAndLogin();
+        Long companyId = createCompany(user, "Offer 只读公司");
+        Long jobId = createJob(user, companyId, "Offer 只读岗位");
+        ResumeFixture resume = createResumeVersion(user, true);
+        Long applicationId = createApplication(user, jobId, resume.versionId());
+
+        createOffer(user, applicationId);
+        transition(user, applicationId, "ENDED", "NO_LONGER_INTERESTED", null);
+
+        // ENDED is terminal, so a still-CONSIDERING Offer must report an
+        // explicit read-only conflict instead of an ENDED -> ENDED message.
+        mockMvc.perform(put("/api/v1/applications/{id}/offer", applicationId)
+                        .header("Authorization", user.authorization()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ACCEPTED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_RESOURCE_STATE"))
+                .andExpect(jsonPath("$.message").value("投递已结束，Offer 只能查看"));
+
+        mockMvc.perform(get("/api/v1/applications/{id}", applicationId).header("Authorization", user.authorization()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentStage").value("ENDED"))
+                .andExpect(jsonPath("$.endReason").value("NO_LONGER_INTERESTED"));
+        mockMvc.perform(get("/api/v1/applications/{id}/offer", applicationId)
+                        .header("Authorization", user.authorization()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONSIDERING"));
+    }
+
+    @Test
     void jobDeleteAllowsNoHistoryButRejectsAnyApplicationHistory() throws Exception {
         AuthSession user = registerAndLogin();
         Long companyId = createCompany(user, "删除语义公司");

@@ -178,7 +178,7 @@ JD/Learning/Job Discovery 使用 no-tools 或专用 tool gateway，互不共享�
 8. [`sql/008_add_profile_email.sql`](sql/008_add_profile_email.sql)
 9. [`sql/009_add_resume_file.sql`](sql/009_add_resume_file.sql)
 
-`007`–`009` 为增量迁移脚本。对于已经应用过对应变更的数据库，请先确认当前 schema 状态后再执行，避免重复 `ALTER`。
+`001`–`006` 与 `009` 使用 `CREATE TABLE IF NOT EXISTS`，对已建库重复执行是安全的；`007` 与 `008` 是 `ALTER TABLE` 增量迁移，重复执行会报 `Duplicate column name`（不会改动或丢失已有数据，但请先确认当前 schema 状态后再执行）。
 
 ### 2. Configure local environment
 
